@@ -645,7 +645,12 @@ if (vendors.length && document.modelContext?.registerTool) {
       const rows = ownershipTable(plan, vendors);
       return {
         serves_at: plan.occasion.serveAt,
-        rows: rows.map(r => ({ job: label(r.job), when: r.when, who: r.who })),
+        // `for` distinguishes two rows that are otherwise identical: with a
+        // two-vendor order you make two trips, and dropping the attribution left
+        // an agent looking at `transport` twice with no way to tell them apart —
+        // so the sensible thing for it to do was de-duplicate and tell you one.
+        rows: rows.map(r => ({ job: label(r.job), when: r.when, who: r.who,
+                               ...(r.for ? { for: r.for } : {}) })),
         yours: rows.filter(r => r.who === 'You').length,
         of: rows.length
       };

@@ -67,6 +67,21 @@ test('the ownership table always names someone, including you', () => {
   assert.ok(rows.some(r => r.who === 'You'), 'some jobs land on the host');
 });
 
+test('two vendors means two trips, and the rows say which is which', () => {
+  // An order split across two vendors is two pickups. Both rows are `transport`,
+  // `3pm`, `You` — only `for` tells them apart, and share_plan hands these rows to
+  // an agent. Drop the attribution and the rows collapse into one, so the host is
+  // told they are making a single trip when they are making two.
+  const o = parseOccasion(PROMPT);
+  const p = assemblePlan(o, vendors, 'pickup');
+  assert.ok(p.basket.vendorsUsed.length > 1, 'this fixture is meant to split across vendors');
+
+  const rows = ownershipTable(p, vendors);
+  const trips = rows.filter(r => r.job === 'transport' && r.who === 'You');
+  assert.equal(trips.length, p.basket.vendorsUsed.length, 'one trip per vendor, not one trip total');
+  assert.equal(new Set(trips.map(r => r.for)).size, trips.length, 'each trip names its vendor');
+});
+
 test('a higher service level moves jobs off the host', () => {
   const o = parseOccasion(PROMPT);
   const yours = lvl => {
