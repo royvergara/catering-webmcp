@@ -187,3 +187,16 @@ test('no component rule silently overrides a utility used beside it', () => {
   assert.deepEqual([...new Set(clashes)], [],
     'give the component rule lower specificity, e.g. input:where(.field) { … }');
 });
+
+test('every page turns off scroll restoration before it parses', () => {
+  // This has to be an inline script in <head>. A module script is deferred, so
+  // setting it from shared/ui.js runs after the document is parsed — after the
+  // browser has already decided what to restore. That is the bug this replaced:
+  // it looked fine in Chromium and dropped an iPhone partway down the page.
+  for (const page of pages) {
+    const html = readFileSync(page, 'utf8');
+    const head = html.slice(0, html.indexOf('</head>'));
+    assert.match(head, /<script>[^<]*scrollRestoration\s*=\s*'manual'/,
+      `${page} does not set scrollRestoration inline in <head>`);
+  }
+});
