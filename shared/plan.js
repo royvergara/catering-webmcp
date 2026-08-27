@@ -1,5 +1,6 @@
 // Pure planning logic. No DOM, no fetch. Composes a basket and explains the arithmetic.
 import { deriveDemand, normalizeItem, runChecks } from '../engine/engine.js';
+import { deriveAssumptions, applyAssumptions, reviseAssumption, carryConfirmed } from '../engine/assumptions.js';
 
 const WORDS = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
   eleven:11, twelve:12, fifteen:15, twenty:20, thirty:30, forty:40, fifty:50, sixty:60, hundred:100 };
@@ -99,13 +100,17 @@ export function composeBasket(occasion, vendors, { maxVendors = 2 } = {}) {
 export function explainQuantity(item, occasion, demand) {
   const share = demand.mainSplit[0];
   const eaters = Math.round(occasion.headcount * share);
-  const needOz = Math.ceil(eaters * 6 * 1.15);
+  const per = occasion.proteinOzPerPerson ?? 6;
+  const buffer = occasion.bufferPct ?? 0.15;
+  const needOz = Math.ceil(eaters * per * (1 + buffer));
   const trays = Math.ceil(needOz / (item.oz || 1));
+  const basis = item.basis_confirmed ? ' (basis confirmed by you)'
+    : item.basis_stated ? ' (basis stated)' : ' (basis assumed)';
   return [
     `${occasion.headcount} guests, buffet, ${demand.mainsTarget} mains`,
     `${Math.round(share * 100)}/${Math.round((1 - share) * 100)} split -> about ${eaters} people on this dish`,
-    `6 oz each with a 15% buffer -> ${needOz} oz`,
-    `this vendor's item is ${item.oz} oz${item.basis_stated ? ' (basis stated)' : ' (basis assumed)'}`,
+    `${per} oz each with a ${Math.round(buffer * 100)}% buffer -> ${needOz} oz`,
+    `this vendor's item is ${item.oz} oz${basis}`,
     `${trays} needed. ${trays - 1} would leave you ${needOz - (trays - 1) * item.oz} oz short.`
   ];
 }
@@ -122,19 +127,40 @@ export function planPickups(basket, occasion) {
   }));
 }
 
-export function assemblePlan(occasion, vendors, serviceLevel = 'pickup') {
-  const basket = composeBasket(occasion, vendors);
-  basket.pickups = planPickups(basket, occasion);
+export function assemblePlan(occasion, vendors, serviceLevel = 'pickup', opts = {}) {
+  const prior = opts.assumptions || [];
+  // Corrections land on the inputs first, so everything below recomputes from them.
+  const applied = applyAssumptions(occasion, vendors, prior);
+  const useOccasion = applied.occasion;
+  const useVendors = applied.vendors;
+
+  const basket = composeBasket(useOccasion, useVendors);
+  basket.pickups = planPickups(basket, useOccasion);
 
   const requirementsByVendor = {};
   for (const slug of basket.vendorsUsed) {
-    const v = vendors.find(x => x.slug === slug);
+    const v = useVendors.find(x => x.slug === slug);
     const lvl = v.service_levels.includes(serviceLevel) ? serviceLevel : v.service_levels[0];
     requirementsByVendor[slug] = { ...(v.requirements[lvl] || {}), service_level: lvl, assumed: !!v.requirements[lvl]?.assumed };
   }
 
-  const { findings } = runChecks({ basket, occasion, requirementsByVendor });
-  return { occasion, basket, requirementsByVendor, findings, serviceLevel };
+  const { findings } = runChecks({ basket, occasion: useOccasion, requirementsByVendor });
+  // Derive from the occasion as given, not as corrected: that is what lets a confirmed
+  // value be reported as standing against a description that still says otherwise.
+  const assumptions = carryConfirmed(deriveAssumptions(occasion, basket), prior);
+
+  return {
+    occasion: useOccasion,
+    baseOccasion: opts.baseOccasion || occasion,  // the raw parse, so a re-run starts clean
+    basket, requirementsByVendor, findings, serviceLevel, assumptions
+  };
+}
+
+// Correct one assumption and rebuild everything that depended on it.
+export function revisePlan(plan, vendors, id, value) {
+  const next = reviseAssumption(plan.assumptions, id, value);
+  return assemblePlan(plan.baseOccasion || plan.occasion, vendors, plan.serviceLevel,
+    { assumptions: next, baseOccasion: plan.baseOccasion || plan.occasion });
 }
 
 export function ownershipTable(plan, vendors) {

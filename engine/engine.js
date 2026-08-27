@@ -7,9 +7,10 @@ export const SERVICE_LEVELS = ['pickup', 'delivery', 'dropoff_setup', 'staffed',
 // Derive per-person demand from the situation, not just headcount.
 export function deriveDemand(occasion) {
   const { headcount, format = 'buffet', durationHours = 3, mealReplaces = true } = occasion;
-  const buffer = 0.15;                       // 10-15% above headcount
-  const secondsRate = format === 'buffet' ? 0.35 : 0;  // 30-40% take seconds at a buffet
-  const proteinOzPP = mealReplaces ? 6 : 0;
+  // Each of these is an editable assumption; a corrected value arrives on the occasion.
+  const buffer = occasion.bufferPct ?? 0.15;               // 10-15% above headcount
+  const secondsRate = occasion.secondsRate ?? (format === 'buffet' ? 0.35 : 0);  // 30-40% take seconds at a buffet
+  const proteinOzPP = occasion.proteinOzPerPerson ?? (mealReplaces ? 6 : 0);
   const bites = mealReplaces ? 0 : Math.round(7 + Math.max(0, durationHours - 2) * 3.5);
 
   return {
@@ -27,7 +28,8 @@ export function normalizeItem(item) {
   const { claimed_serves, basis_mains = 1, portion_oz = 6 } = item;
   // A tray "serving N" usually assumes it is one of several dishes.
   const totalOz = claimed_serves * portion_oz * basis_mains;
-  const confidence = item.basis_stated ? 0.95 : 0.7;
+  // A basis the user checked outranks one the vendor merely stated.
+  const confidence = item.basis_confirmed ? 1 : (item.basis_stated ? 0.95 : 0.7);
   return { ...item, normalized: { protein_oz: totalOz, confidence } };
 }
 

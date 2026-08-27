@@ -57,6 +57,18 @@
     </div>
   </section>
 
+  <!-- assumptions: the agent proposes, you correct -->
+  <section class="chit mb-4" id="assumeCard" hidden>
+    <div class="chit-head"><span class="chit-title">What this rests on</span><span class="chit-note" id="assumeNote"></span></div>
+    <div class="chit-body">
+      <p class="m-0 mb-3 text-[14px] text-ink-soft">
+        Every number below was inferred, not stated. Change one and the plan recomputes.
+        What you change is kept, and a later run will not quietly undo it.
+      </p>
+      <div id="assumptions"></div>
+    </div>
+  </section>
+
   <!-- findings -->
   <section class="chit mb-4" id="findCard" hidden>
     <div class="chit-head"><span class="chit-title">What the order does not cover</span></div>
@@ -87,7 +99,7 @@ window.addEventListener('unhandledrejection', e => {
 </script>
 
 <script type="module">
-import { parseOccasion, assemblePlan, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
+import { parseOccasion, assemblePlan, revisePlan, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
 import { runChecks } from '/engine/engine.js';
 import { mountHeader, badge, tierBadge, money, label } from '/shared/ui.js';
 
@@ -99,6 +111,7 @@ const els = {
   q: $('q'), lvl: $('lvl'), go: $('go'), statusLine: $('statusLine'), err: $('err'),
   naiveCard: $('naiveCard'), naive: $('naive'),
   basketCard: $('basketCard'), basket: $('basket'), basketNote: $('basketNote'), math: $('math'),
+  assumeCard: $('assumeCard'), assumptions: $('assumptions'), assumeNote: $('assumeNote'),
   findCard: $('findCard'), findings: $('findings'),
   ownCard: $('ownCard'), owners: $('owners'), ownNote: $('ownNote'), log: $('log')
 };
@@ -115,7 +128,7 @@ function log(tool, input, output) {
 
 function render(plan) {
   current = plan;
-  for (const c of ['naiveCard','basketCard','findCard','ownCard']) { els[c].hidden = false; els[c].classList.add('rise'); }
+  for (const c of ['naiveCard','basketCard','assumeCard','findCard','ownCard']) { els[c].hidden = false; els[c].classList.add('rise'); }
 
   // baseline
   const nb = naiveBasket(plan.occasion, vendors);
@@ -150,6 +163,8 @@ function render(plan) {
   els.math.textContent = [...plan.basket.why, '',
     ...(firstMain ? explainQuantity(firstMain, plan.occasion, plan.basket.demand) : [])].join('\n');
 
+  renderAssumptions(plan);
+
   // findings
   els.findings.innerHTML = plan.findings.length
     ? plan.findings.map((f, idx) => `
@@ -179,6 +194,65 @@ function render(plan) {
   });
 }
 
+// Assumptions are editable in place. Change one, everything downstream recomputes.
+function renderAssumptions(plan) {
+  const list = plan.assumptions || [];
+  const confirmed = list.filter(a => a.confirmed).length;
+  els.assumeNote.textContent = confirmed
+    ? `${confirmed} of ${list.length} confirmed by you`
+    : `${list.length} inferred, none confirmed`;
+
+  els.assumptions.innerHTML = list.map((a, idx) => {
+    const control = a.type === 'boolean'
+      ? `<select class="field w-auto py-1 text-[13px]" data-a="${a.id}" aria-label="${a.label}">
+           <option value="yes"${a.value ? ' selected' : ''}>yes</option>
+           <option value=""${a.value ? '' : ' selected'}>no</option>
+         </select>`
+      : `<input type="number" class="field w-24 py-1 text-[13px] font-mono" data-a="${a.id}"
+                aria-label="${a.label}" value="${a.value}" min="0"
+                step="${a.unit === 'share' ? '0.05' : '1'}">`;
+    return `
+      <div class="py-2.5 ${idx ? 'border-t border-rule' : ''}">
+        <div class="flex flex-wrap items-baseline gap-2">
+          <span class="text-[14px]">${a.label}</span>
+          ${a.confirmed ? badge('ok', 'confirmed by you') : badge('risk', a.source)}
+          <span class="ml-auto flex items-baseline gap-2">
+            ${control}
+            <span class="font-mono text-[11px] text-ink-mute w-14">${a.unit}</span>
+          </span>
+        </div>
+        <p class="m-0 mt-1 text-[13px] text-ink-mute">${a.basis} · confidence ${a.confidence}</p>
+        ${a.contested !== undefined
+          ? `<p class="m-0 mt-1 text-[13px] text-short">Your value stands. The description still reads ${a.contested}.</p>`
+          : ''}
+      </div>`;
+  }).join('');
+
+  els.assumptions.querySelectorAll('[data-a]').forEach(el => {
+    el.addEventListener('change', () => revise(el.dataset.a, el.tagName === 'SELECT' ? !!el.value : el.value));
+  });
+}
+
+function revise(id, value) {
+  try {
+    els.err.hidden = true;
+    const next = revisePlan(current, vendors, id, value);
+    log('revise', { assumption: id, value },
+        { subtotal: next.basket.subtotal, items: next.basket.items.length, findings: next.findings.length });
+    render(next);
+    status(next);
+  } catch (e) {
+    els.err.hidden = false;
+    els.err.textContent = 'Could not apply that correction: ' + e.message;
+  }
+}
+
+function status(plan) {
+  const blockers = plan.findings.filter(f => f.severity === 'blocker').length;
+  els.statusLine.textContent =
+    `${plan.basket.items.length} items · ${money(plan.basket.subtotal)} · ${blockers} blocker${blockers === 1 ? '' : 's'}`;
+}
+
 function negotiate(constraint, idx) {
   const options = [];
   for (const v of vendors) for (const a of v.accommodations || []) if (a.for === constraint) options.push({ vendor: v.name, ...a });
@@ -199,12 +273,12 @@ function negotiate(constraint, idx) {
 function run() {
   try {
     const occasion = parseOccasion(els.q.value);
-    const plan = assemblePlan(occasion, vendors, els.lvl.value);
+    // anything already confirmed survives a re-plan
+    const plan = assemblePlan(occasion, vendors, els.lvl.value, { assumptions: current?.assumptions || [] });
     log('plan_meal', { description: els.q.value, service_level: els.lvl.value },
         { headcount: occasion.headcount, dietary: occasion.dietary, findings: plan.findings.length });
     render(plan);
-    const blockers = plan.findings.filter(f => f.severity === 'blocker').length;
-    els.statusLine.textContent = `${plan.basket.items.length} items · ${money(plan.basket.subtotal)} · ${blockers} blocker${blockers === 1 ? '' : 's'}`;
+    status(plan);
     return plan;
   } catch (e) {
     els.err.hidden = false;
@@ -254,6 +328,24 @@ if (vendors.length && document.modelContext?.registerTool) {
       const options = [];
       for (const v of vendors) for (const a of v.accommodations || []) if (a.for === constraint) options.push({ vendor: v.name, ...a });
       return { constraint, options };
+    });
+
+  reg('list_assumptions', 'Every number this plan inferred rather than read from a vendor: its value, where it came from, how far it is trusted, and whether the customer has confirmed it.',
+    { type:'object', properties:{} },
+    () => ({ assumptions: (current || run()).assumptions }));
+
+  reg('revise', 'Correct one assumption by id and rebuild the plan from it. The corrected value is marked confirmed and is not overwritten by a later run.',
+    { type:'object', properties:{ assumption:{type:'string'}, value:{} }, required:['assumption','value'] },
+    ({ assumption, value }) => {
+      const before = current || run();
+      const after = revisePlan(before, vendors, assumption, value);
+      render(after); status(after);
+      return {
+        assumption, value,
+        subtotal: after.basket.subtotal,
+        items: after.basket.items.length,
+        findings: after.findings
+      };
     });
 
   reg('share_plan', 'Return the job and owner table for this plan, including the jobs left to the host.',
