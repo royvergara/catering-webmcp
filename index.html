@@ -79,7 +79,7 @@
 import { mountHeader, tierBadge } from '/shared/ui.js';
 mountHeader('Overview');
 
-const slugs = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','loop-rentals','handoff-staffing'];
+const slugs = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','prime-platters','loop-rentals','handoff-staffing'];
 const vs = await Promise.all(slugs.map(s => fetch(`/data/vendors/${s}.json`).then(r => r.json())));
 document.getElementById('vendors').innerHTML = vs.map(v => `
   <a class="chit no-underline text-ink block hover:shadow-chit" href="/vendor.html?v=${v.slug}">

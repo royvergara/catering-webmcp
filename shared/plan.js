@@ -2,6 +2,7 @@
 import { deriveDemand, normalizeItem, runChecks } from '../engine/engine.js';
 import { deriveAssumptions, applyAssumptions, reviseAssumption, carryConfirmed } from '../engine/assumptions.js';
 import { diffFindings, summarizeDelta } from '../engine/replan.js';
+import { admitVendors } from '../engine/trust.js';
 
 const WORDS = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
   eleven:11, twelve:12, fifteen:15, twenty:20, thirty:30, forty:40, fifty:50, sixty:60, hundred:100 };
@@ -130,6 +131,10 @@ export function planPickups(basket, occasion) {
 
 export function assemblePlan(occasion, vendors, serviceLevel = 'pickup', opts = {}) {
   const prior = opts.assumptions || [];
+  // Vendor data is third-party input. Admit it as data before anything reads it:
+  // unknown fields dropped, agent-directed sentences quarantined.
+  const trust = admitVendors(vendors);
+  vendors = trust.vendors;
   // Corrections land on the inputs first, so everything below recomputes from them.
   const applied = applyAssumptions(occasion, vendors, prior);
   const useOccasion = applied.occasion;
@@ -153,8 +158,37 @@ export function assemblePlan(occasion, vendors, serviceLevel = 'pickup', opts = 
   return {
     occasion: useOccasion,
     baseOccasion: opts.baseOccasion || occasion,  // the raw parse, so a re-run starts clean
-    basket, requirementsByVendor, findings, serviceLevel, assumptions
+    basket, requirementsByVendor, findings, serviceLevel, assumptions,
+    trust, ranking: rankVendors(useVendors, useOccasion)
   };
+}
+
+// Deterministic and explainable: coverage of the stated dietary groups, then value,
+// then name. Nothing a vendor says about itself is an input. There is no paid
+// position here because there is no marketplace here.
+export function rankVendors(vendors, occasion) {
+  const groups = Object.keys(occasion.dietary || {});
+  const rows = vendors
+    .filter(v => v.kind === 'caterer' || v.kind === 'bakery')
+    .map(v => {
+      const mains = (v.menu || []).filter(i => i.category === 'main');
+      const covers = groups.filter(g => mains.some(i => (i.dietary || []).includes(g)));
+      const best = mains.reduce((n, i) => {
+        const oz = normalizeItem(i).normalized.protein_oz;
+        return i.price ? Math.max(n, oz / i.price) : n;
+      }, 0);
+      return { slug: v.slug, name: v.name, tier: v.tier, covers: covers.length, ozPerDollar: Number(best.toFixed(2)) };
+    });
+
+  rows.sort((a, b) =>
+    b.covers - a.covers ||
+    b.ozPerDollar - a.ozPerDollar ||
+    a.slug.localeCompare(b.slug));
+
+  return rows.map((r, i) => ({
+    ...r, rank: i + 1,
+    why: `covers ${r.covers} of ${groups.length} stated group${groups.length === 1 ? '' : 's'}, ${r.ozPerDollar} oz per dollar`
+  }));
 }
 
 // Correct one assumption and rebuild everything that depended on it.

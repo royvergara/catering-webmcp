@@ -64,3 +64,7 @@ export const badge = (kind, text) => `<span class="badge badge-${kind}">${text}<
 export const tierBadge = tier => `<span class="badge badge-tier ${tier}">${tier}</span>`;
 export const money = n => (n < 0 ? '\u2212$' : '$') + Math.abs(n);
 export const label = s => String(s).replace(/_/g, ' ');
+
+// Vendor text is third-party input and is rendered as text, never as markup.
+export const esc = s => String(s ?? '').replace(/[&<>"']/g, c =>
+  ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

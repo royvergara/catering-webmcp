@@ -87,6 +87,19 @@
     <div class="chit-body font-mono text-[13px]" id="owners"></div>
   </section>
 
+  <!-- trust boundary: vendor tools run on vendor sites and can say anything -->
+  <section class="chit mb-8" id="trustCard" hidden>
+    <div class="chit-head"><span class="chit-title">Vendor claims, treated as data</span><span class="chit-note" id="trustNote"></span></div>
+    <div class="chit-body">
+      <p class="m-0 mb-3 text-[14px] text-ink-soft">
+        Vendor tools run on vendor sites, so a vendor can say anything — including things
+        addressed to this agent. Ranking is by coverage, then value, then name. Nothing a
+        vendor says about itself is an input to it.
+      </p>
+      <div id="trust"></div>
+    </div>
+  </section>
+
   <section class="chit">
     <div class="chit-head"><span class="chit-title">Agent tool calls</span><span class="chit-note">live</span></div>
     <div class="chit-body"><pre id="log" class="readout">no calls yet</pre></div>
@@ -108,7 +121,7 @@ window.addEventListener('unhandledrejection', e => {
 import { parseOccasion, assemblePlan, revisePlan, replan, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
 import { runChecks } from '/engine/engine.js';
 import { CHECKS as CHECK_LABELS } from '/engine/replan.js';
-import { mountHeader, badge, tierBadge, money, label } from '/shared/ui.js';
+import { mountHeader, badge, tierBadge, money, label, esc } from '/shared/ui.js';
 
 mountHeader('Planner');
 
@@ -121,10 +134,11 @@ const els = {
   basketCard: $('basketCard'), basket: $('basket'), basketNote: $('basketNote'), math: $('math'),
   assumeCard: $('assumeCard'), assumptions: $('assumptions'), assumeNote: $('assumeNote'),
   findCard: $('findCard'), findings: $('findings'),
-  ownCard: $('ownCard'), owners: $('owners'), ownNote: $('ownNote'), log: $('log')
+  ownCard: $('ownCard'), owners: $('owners'), ownNote: $('ownNote'),
+  trustCard: $('trustCard'), trust: $('trust'), trustNote: $('trustNote'), log: $('log')
 };
 
-const SLUGS = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','loop-rentals','handoff-staffing'];
+const SLUGS = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','prime-platters','loop-rentals','handoff-staffing'];
 let vendors = [];
 let current = null;
 const calls = [];
@@ -136,25 +150,25 @@ function log(tool, input, output) {
 
 function render(plan) {
   current = plan;
-  for (const c of ['naiveCard','basketCard','assumeCard','findCard','ownCard']) { els[c].hidden = false; els[c].classList.add('rise'); }
+  for (const c of ['naiveCard','basketCard','assumeCard','findCard','ownCard','trustCard']) { els[c].hidden = false; els[c].classList.add('rise'); }
 
   // baseline
   const nb = naiveBasket(plan.occasion, vendors);
   const nf = runChecks({ basket: { ...nb, pickups: [] }, occasion: plan.occasion }).findings;
   els.naive.innerHTML = `
-    <div class="font-mono text-[13px] mb-3">${nb.items.length} &times; ${nb.items[0].name}
-      <span class="text-ink-mute">· ${nb.items[0].vendorName}</span>
+    <div class="font-mono text-[13px] mb-3">${nb.items.length} &times; ${esc(nb.items[0].name)}
+      <span class="text-ink-mute">· ${esc(nb.items[0].vendorName)}</span>
       <span class="float-right">${money(nb.subtotal)}</span></div>
     ${nf.map(f => `<div class="flex gap-2 items-baseline text-[14px] text-short mb-1">
-        <span aria-hidden="true">&times;</span><span>${f.message}</span></div>`).join('')
+        <span aria-hidden="true">&times;</span><span>${esc(f.message)}</span></div>`).join('')
       || '<div class="text-[14px] text-covered">No issues.</div>'}`;
 
   // composed order
   els.basketNote.textContent = `${plan.basket.vendorsUsed.length} vendor${plan.basket.vendorsUsed.length > 1 ? 's' : ''} · ${money(plan.basket.subtotal)}`;
   els.basket.innerHTML = plan.basket.items.map(i => `
     <div class="row">
-      <span class="row-name">${i.name}
-        <span class="text-ink-mute">· ${i.vendorName}</span>
+      <span class="row-name">${esc(i.name)}
+        <span class="text-ink-mute">· ${esc(i.vendorName)}</span>
         ${tierBadge(i.tier)}
         ${i.basis_stated ? '' : '<span class="badge badge-risk">basis assumed</span>'}
       </span>
@@ -165,13 +179,14 @@ function render(plan) {
        <span class="row-num font-semibold">${money(plan.basket.subtotal)}</span>
      </div>` +
     (plan.basket.splitReason
-      ? `<p class="mt-3 text-[13px] text-ink-mute font-sans m-0">Split across vendors — ${plan.basket.splitReason}</p>` : '');
+      ? `<p class="mt-3 text-[13px] text-ink-mute font-sans m-0">Split across vendors — ${esc(plan.basket.splitReason)}</p>` : '');
 
   const firstMain = plan.basket.items.find(i => i.category === 'main');
   els.math.textContent = [...plan.basket.why, '',
     ...(firstMain ? explainQuantity(firstMain, plan.occasion, plan.basket.demand) : [])].join('\n');
 
   renderAssumptions(plan);
+  renderTrust(plan);
 
   // findings
   els.findings.innerHTML = plan.findings.length
@@ -181,7 +196,7 @@ function render(plan) {
             ${badge(f.severity === 'blocker' ? 'blocker' : 'risk', f.severity)}
             <span class="font-mono text-[11px] uppercase tracking-[.1em] text-ink-mute">${f.check}</span>
           </div>
-          <p class="m-0 text-[15px]">${f.message}</p>
+          <p class="m-0 text-[15px]">${esc(f.message)}</p>
           <button data-c="${f.check}" data-i="${idx}" class="btn btn-quiet neg mt-2">What can be done</button>
           <div id="opt-${idx}"></div>
         </div>`).join('')
@@ -202,6 +217,42 @@ function render(plan) {
   });
 }
 
+function renderTrust(plan) {
+  const t = plan.trust || { quarantined: [], offenders: [], ignoredFields: {} };
+  const ignoredCount = Object.values(t.ignoredFields).flat().length;
+  els.trustNote.textContent = t.quarantined.length
+    ? `${t.quarantined.length} instruction${t.quarantined.length === 1 ? '' : 's'} ignored`
+    : 'nothing to ignore';
+
+  const ranking = plan.ranking.map(r => `
+    <div class="row">
+      <span class="row-name">${r.rank}. ${esc(r.name)} ${tierBadge(r.tier)}
+        <span class="text-ink-mute">· ${esc(r.why)}</span></span>
+      <span class="row-num text-ink-mute">${r.ozPerDollar} oz/$</span>
+    </div>`).join('');
+
+  const attempts = t.quarantined.map(q => `
+    <div class="py-2 border-t border-rule">
+      <div class="flex flex-wrap items-baseline gap-2 mb-1">
+        ${badge('blocker', 'ignored')}
+        <span class="font-mono text-[11px] uppercase tracking-[.1em] text-ink-mute">${esc(q.vendor)} · ${esc(q.path)}</span>
+      </div>
+      <p class="m-0 font-mono text-[12px] text-ink-mute break-words">&ldquo;${esc(q.text)}&rdquo;</p>
+      <p class="m-0 mt-1 text-[13px]">${q.patterns.map(x => esc(x.why)).join('; ')}.</p>
+    </div>`).join('');
+
+  els.trust.innerHTML =
+    `<p class="font-mono text-[11px] uppercase tracking-[.12em] text-carbon m-0 mb-1">How the vendors actually rank</p>
+     <div class="font-mono text-[13px]">${ranking}</div>` +
+    (t.quarantined.length
+      ? `<p class="font-mono text-[11px] uppercase tracking-[.12em] text-carbon m-0 mt-4 mb-1">What was said to the agent, and ignored</p>${attempts}`
+      : '') +
+    (ignoredCount
+      ? `<p class="m-0 mt-3 text-[13px] text-ink-mute">${ignoredCount} unrecognised field${ignoredCount === 1 ? '' : 's'} were never read: ${
+          esc(Object.entries(t.ignoredFields).map(([v, f]) => `${v} (${f.join(', ')})`).join('; '))}.</p>`
+      : '');
+}
+
 // Assumptions are editable in place. Change one, everything downstream recomputes.
 function renderAssumptions(plan) {
   const list = plan.assumptions || [];
@@ -212,24 +263,24 @@ function renderAssumptions(plan) {
 
   els.assumptions.innerHTML = list.map((a, idx) => {
     const control = a.type === 'boolean'
-      ? `<select class="field w-auto py-1 text-[13px]" data-a="${a.id}" aria-label="${a.label}">
+      ? `<select class="field w-auto py-1 text-[13px]" data-a="${a.id}" aria-label="${esc(a.label)}">
            <option value="yes"${a.value ? ' selected' : ''}>yes</option>
            <option value=""${a.value ? '' : ' selected'}>no</option>
          </select>`
       : `<input type="number" class="field w-24 py-1 text-[13px] font-mono" data-a="${a.id}"
-                aria-label="${a.label}" value="${a.value}" min="0"
+                aria-label="${esc(a.label)}" value="${a.value}" min="0"
                 step="${a.unit === 'share' ? '0.05' : '1'}">`;
     return `
       <div class="py-2.5 ${idx ? 'border-t border-rule' : ''}">
         <div class="flex flex-wrap items-baseline gap-2">
-          <span class="text-[14px]">${a.label}</span>
+          <span class="text-[14px]">${esc(a.label)}</span>
           ${a.confirmed ? badge('ok', 'confirmed by you') : badge('risk', a.source)}
           <span class="ml-auto flex items-baseline gap-2">
             ${control}
             <span class="font-mono text-[11px] text-ink-mute w-14">${a.unit}</span>
           </span>
         </div>
-        <p class="m-0 mt-1 text-[13px] text-ink-mute">${a.basis} · confidence ${a.confidence}</p>
+        <p class="m-0 mt-1 text-[13px] text-ink-mute">${esc(a.basis)} · confidence ${a.confidence}</p>
         ${a.contested !== undefined
           ? `<p class="m-0 mt-1 text-[13px] text-short">Your value stands. The description still reads ${a.contested}.</p>`
           : ''}
@@ -272,11 +323,11 @@ function renderDelta(delta) {
 
   // the badge says what happened; the severity says how bad the finding itself is
   const line = (kind, what, text) =>
-    `<div class="flex flex-wrap gap-2 items-baseline text-[14px] mb-1.5">${badge(kind, what)}<span>${text}</span></div>`;
+    `<div class="flex flex-wrap gap-2 items-baseline text-[14px] mb-1.5">${badge(kind, what)}<span>${esc(text)}</span></div>`;
   const sev = f => (f.severity === 'blocker' ? 'blocker' : 'risk');
 
   els.delta.innerHTML =
-    `<p class="m-0 mb-2 font-mono text-[13px]">${delta.change}${delta.cost ? ' ' + delta.cost : ''}</p>` +
+    `<p class="m-0 mb-2 font-mono text-[13px]">${esc(delta.change)}${delta.cost ? ' ' + delta.cost : ''}</p>` +
     delta.broke.map(f => line(sev(f), 'now broken', f.message)).join('') +
     worse.map(p => line(sev(p.finding), `worse by ${Math.abs(p.by)}`, p.finding.message)).join('') +
     delta.cleared.map(f => line('ok', 'cleared', f.message)).join('') +
@@ -303,8 +354,8 @@ function negotiate(constraint, idx) {
       <p class="font-mono text-[11px] uppercase tracking-[.1em] text-carbon m-0 mb-1">What each vendor can do</p>
       ${options.length ? options.map(o => `
         <div class="row">
-          <span class="row-name text-[14px]">${o.description}
-            <span class="text-ink-mute">· ${o.vendor} · ${o.conditions}</span></span>
+          <span class="row-name text-[14px]">${esc(o.description)}
+            <span class="text-ink-mute">· ${esc(o.vendor)} · ${esc(o.conditions)}</span></span>
           <span class="row-num text-[14px]">${o.cost === 0 ? 'no charge' : money(o.cost)}</span>
         </div>`).join('')
         : '<p class="m-0 text-[14px] text-ink-mute">No vendor offered an accommodation for this.</p>'}
@@ -409,6 +460,19 @@ if (vendors.length && document.modelContext?.registerTool) {
         now_broken: delta.broke,
         cleared: delta.cleared,
         summary: delta.lines
+      };
+    });
+
+  reg('explain_ranking', 'How the vendors rank and why, plus any instruction a vendor tried to give this agent and what was done about it. Ranking is deterministic: coverage, then value, then name.',
+    { type:'object', properties:{} },
+    () => {
+      const p = current || run();
+      return {
+        ranking: p.ranking,
+        basis: 'coverage of stated dietary groups, then oz per dollar, then vendor name',
+        vendor_claims_are_data: true,
+        ignored_instructions: p.trust.quarantined,
+        fields_never_read: p.trust.ignoredFields
       };
     });
 
