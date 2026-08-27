@@ -134,3 +134,56 @@ test('no page still asks for a face we no longer ship', () => {
     assert.ok(declared.has(family), `ui.css sets ${family}, which fonts.css does not ship`);
   }
 });
+
+// A component class and a utility class have the same specificity, so whichever
+// stylesheet is linked last wins — and ui.css is linked last. That means a bare
+// `.field { padding: … }` silently beats `py-1` in the markup. It is invisible:
+// the class is present, the rule is real, the page just ignores it. It cost the
+// assumption inputs their width, padding and font size all at once.
+const PROPERTY_OF = [
+  [/^w-/, 'width'], [/^max-w-/, 'max-width'], [/^h-/, 'height'],
+  [/^p-/, 'padding'], [/^px-/, 'padding'], [/^py-/, 'padding'],
+  [/^text-(\[|xs$|sm$|base$|lg$|xl$|\dxl$)/, 'font-size'],
+  [/^font-(mono|sans|serif)$/, 'font-family'],
+  [/^font-(thin|light|normal|medium|semibold|bold|extrabold|black)$/, 'font-weight'],
+  [/^leading-/, 'line-height'], [/^tracking-/, 'letter-spacing'],
+  [/^m-/, 'margin'], [/^mx-/, 'margin'], [/^my-/, 'margin'],
+];
+const propertyFor = token => (PROPERTY_OF.find(([re]) => re.test(token)) || [])[1];
+
+// every rule in ui.css written as one bare class, and the properties it sets.
+// Comments are stripped first: an earlier version anchored on the previous `}`
+// and so skipped any rule that had a comment above it, which is most of them —
+// including the one this test exists to catch.
+function bareClassRules(css) {
+  const rules = new Map();
+  const clean = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  for (const [, selector, body] of clean.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const cls = selector.trim().match(/^\.([A-Za-z][\w-]*)$/);
+    if (!cls) continue;                       // qualified or compound: it can lose safely
+    const props = new Set([...body.matchAll(/(?:^|;)\s*([a-z-]+)\s*:/g)]
+      .map(d => d[1].replace(/^(padding|margin|font)-.*/, '$1')));
+    rules.set(cls[1], new Set([...(rules.get(cls[1]) || []), ...props]));
+  }
+  return rules;
+}
+
+test('no component rule silently overrides a utility used beside it', () => {
+  const rules = bareClassRules(components);
+  const clashes = [];
+  for (const page of pages) {
+    for (const m of readFileSync(page, 'utf8').matchAll(/class="([^"]*)"/g)) {
+      const tokens = [...stripExpressions(m[1]).split(/\s+/), ...classesInExpressions(m[1])].filter(Boolean);
+      for (const component of tokens.filter(t => rules.has(t))) {
+        for (const token of tokens) {
+          const prop = propertyFor(token);
+          if (prop && rules.get(component).has(prop)) {
+            clashes.push(`${page}: .${component} sets ${prop}, so ${token} does nothing`);
+          }
+        }
+      }
+    }
+  }
+  assert.deepEqual([...new Set(clashes)], [],
+    'give the component rule lower specificity, e.g. input:where(.field) { … }');
+});
