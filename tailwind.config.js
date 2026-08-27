@@ -24,7 +24,7 @@ module.exports = {
         covered:{ DEFAULT: '#0F6B4F', soft: '#E2F2EC' }    // ok
       },
       fontFamily: {
-        display: ['Archivo', 'system-ui', 'sans-serif'],
+        display: ['Fraunces', 'Georgia', 'serif'],
         sans:    ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
         mono:    ['"IBM Plex Mono"', 'ui-monospace', 'monospace']
       },

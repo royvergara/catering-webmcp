@@ -33,7 +33,9 @@ body{
   background:linear-gradient(180deg,#fff, #FAFBFC);
 }
 .chit-title{
-  font-family:Archivo,system-ui,sans-serif; font-weight:700;
+  font-family:Fraunces,Georgia,serif;
+  /* the text cut, not the display one: at label size the fine serifs would break up */
+  font-variation-settings:'opsz' 14,'wght' 600,'SOFT' 0,'WONK' 0;
   font-size:.78rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft);
 }
 .chit-note{ font-family:"IBM Plex Mono",monospace; font-size:.7rem; color:var(--ink-mute); margin-left:auto; }
@@ -80,7 +82,8 @@ body{
 .field:focus{ outline:2px solid var(--carbon); outline-offset:1px; border-color:var(--carbon); }
 .btn{
   display:inline-flex; align-items:center; gap:.4rem; cursor:pointer;
-  font-family:Archivo,system-ui,sans-serif; font-weight:700; letter-spacing:.02em;
+  font-family:Fraunces,Georgia,serif; font-variation-settings:'opsz' 24,'wght' 600,'SOFT' 0,'WONK' 0;
+  letter-spacing:.01em;
   padding:.6rem 1rem; border-radius:2px; border:1px solid var(--ink);
   background:var(--ink); color:#fff;
 }
@@ -144,19 +147,24 @@ a{ color:var(--carbon); }
   margin:0; font-family:"IBM Plex Mono",monospace; font-size:.68rem;
   letter-spacing:.18em; text-transform:uppercase; color:var(--ink-soft);
 }
+/* sheets come in a run and are numbered, the way a docket numbers its pages */
+.kicker-no{ color:var(--carbon); margin-right:.6rem; }
 /* the facts about this sheet, stamped where a chit stamps its count */
 .sheethead-meta{
   margin-left:auto; text-align:right; font-family:"IBM Plex Mono",monospace;
   font-size:.66rem; letter-spacing:.1em; color:var(--ink-mute);
 }
 .sheethead h1{
-  margin:0; max-width:34rem;
-  font-family:Archivo,system-ui,sans-serif; font-weight:700;
-  font-size:clamp(1.35rem,3.4vw,1.7rem); line-height:1.25; letter-spacing:-.012em;
+  margin:0; max-width:30rem;
+  font-family:Fraunces,Georgia,serif;
+  /* the display cut with WONK on: the flared leg, the angled terminals. This is
+     the one place the face is allowed to have an opinion. */
+  font-variation-settings:'opsz' 144,'wght' 500,'SOFT' 24,'WONK' 1;
+  font-size:clamp(1.6rem,4.4vw,2.15rem); line-height:1.16; letter-spacing:-.005em;
   text-wrap:balance;
 }
 /* the home page is the same head, one step up — not a different animal */
-.sheethead-hero h1{ font-size:clamp(1.6rem,4.4vw,2.1rem); }
+.sheethead-hero h1{ font-size:clamp(1.85rem,5.6vw,2.7rem); max-width:36rem; }
 .lede{ margin:.7rem 0 0; max-width:34rem; font-size:1rem; line-height:1.6; color:var(--ink-soft); }
 .lede-note{ margin:.6rem 0 0; max-width:34rem; font-size:.875rem; line-height:1.55; color:var(--ink-mute); }
 @media (max-width:480px){
@@ -193,8 +201,9 @@ a{ color:var(--carbon); }
    the name is set, the protocol is stamped. */
 .mark{ display:inline-flex; align-items:baseline; gap:.12rem; text-decoration:none; white-space:nowrap; }
 .mark-name{
-  font-family:Archivo,system-ui,sans-serif; font-weight:800;
-  font-size:.9rem; letter-spacing:-.02em; color:var(--ink);
+  font-family:Fraunces,Georgia,serif;
+  font-variation-settings:'opsz' 72,'wght' 700,'SOFT' 0,'WONK' 1;
+  font-size:1rem; letter-spacing:.005em; color:var(--ink);
 }
 .mark-dot{ color:var(--carbon); font-weight:800; }
 .mark-code{

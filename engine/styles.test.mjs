@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import test from 'node:test';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 
 // shared/tailwind.css is generated and committed, so it can fall out of step with the
 // markup: add a utility class to a page, forget to regenerate, and the class silently
@@ -107,5 +107,30 @@ test('the stylesheet the pages link to is the one that is committed', () => {
     const html = readFileSync(page, 'utf8');
     assert.ok(html.includes('/shared/tailwind.css'), `${page} does not link the generated stylesheet`);
     assert.ok(!html.includes('cdn.tailwindcss.com'), `${page} still loads Tailwind from a CDN`);
+  }
+});
+
+test('every vendored font file the stylesheet asks for is actually committed', () => {
+  // the fonts are served from this origin so a conference network cannot break the
+  // demo. A @font-face pointing at a file we deleted fails silently — the browser
+  // just falls back — so check the paths resolve, and that none of them is remote.
+  const fonts = readFileSync('shared/fonts.css', 'utf8');
+  const urls = [...fonts.matchAll(/url\(([^)]+)\)/g)].map(m => m[1].replace(/['"]/g, ''));
+  assert.ok(urls.length > 0, 'no @font-face src found at all');
+  for (const url of urls) {
+    assert.ok(!/^https?:/.test(url), `${url} is loaded from a third party`);
+    assert.ok(existsSync('.' + url), `${url} is referenced but not committed`);
+  }
+});
+
+test('no page still asks for a face we no longer ship', () => {
+  // the display face is declared in one place; a stale family name anywhere else
+  // renders in the system serif and looks like a bug nobody can explain
+  const declared = new Set([...readFileSync('shared/fonts.css', 'utf8')
+    .matchAll(/font-family:\s*'([^']+)'/g)].map(m => m[1]));
+  const used = new Set([...components.matchAll(/font-family:\s*([A-Za-z][\w -]*)/g)]
+    .map(m => m[1].trim()).filter(f => !/^(inherit|monospace|serif|sans-serif|system-ui)$/.test(f)));
+  for (const family of used) {
+    assert.ok(declared.has(family), `ui.css sets ${family}, which fonts.css does not ship`);
   }
 });
