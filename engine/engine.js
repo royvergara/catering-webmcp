@@ -125,6 +125,37 @@ export function checkTiming(basket, occasion) {
   return out;
 }
 
+// A vendor can publish a menu and still not be able to take the order. Their own
+// availability tool knows; nothing was asking it.
+export function checkAvailability(basket, occasion, vendorsBySlug = {}) {
+  const out = [];
+  const date = String(occasion.serveAt || '').slice(0, 10);
+  if (!date) return out;
+
+  for (const slug of basket.vendorsUsed || []) {
+    const v = vendorsBySlug[slug];
+    if (!v) continue;
+    if ((v.blackout_dates || []).includes(date)) {
+      out.push({
+        check: 'availability', severity: 'blocker', vendor: slug,
+        message: `${v.name} is booked on ${date}. Their own availability says so.`
+      });
+      continue;
+    }
+    // Only checkable when we know when the order is being placed.
+    if (occasion.placedAt && v.lead_time_hours) {
+      const hours = (new Date(occasion.serveAt) - new Date(occasion.placedAt)) / 3.6e6;
+      if (Number.isFinite(hours) && hours < v.lead_time_hours) {
+        out.push({
+          check: 'availability', severity: 'blocker', vendor: slug, hours: Math.round(hours),
+          message: `${v.name} needs ${v.lead_time_hours}h notice and this order gives ${Math.round(hours)}h.`
+        });
+      }
+    }
+  }
+  return out;
+}
+
 // The budget is stated up front and then quietly exceeded. Say so.
 export function checkBudget(basket, occasion) {
   if (!occasion.budget || basket.subtotal === undefined) return [];
@@ -136,13 +167,14 @@ export function checkBudget(basket, occasion) {
   }];
 }
 
-export function runChecks({ basket, occasion, requirementsByVendor = {} }) {
+export function runChecks({ basket, occasion, requirementsByVendor = {}, vendorsBySlug = {} }) {
   const demand = deriveDemand(occasion);
   const findings = [
     ...checkQuantity(basket, demand),
     ...checkCoverage(basket, occasion),
     ...checkUnclaimed(basket, requirementsByVendor, occasion),
     ...checkTiming(basket, occasion),
+    ...checkAvailability(basket, occasion, vendorsBySlug),
     ...checkBudget(basket, occasion)
   ];
   const rank = { blocker: 0, risk: 1, note: 2 };

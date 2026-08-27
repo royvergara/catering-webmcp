@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
-import { parseOccasion, composeBasket, assemblePlan, ownershipTable, explainQuantity } from '../shared/plan.js';
+import { parseOccasion, composeBasket, assemblePlan, ownershipTable, explainQuantity, naiveBasket } from '../shared/plan.js';
 
 const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
   .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
@@ -153,4 +153,60 @@ test('the budget is an editable assumption like everything else it drives', () =
   const b = plan.assumptions.find(a => a.id === 'occasion.budget');
   assert.ok(b, 'the budget is listed');
   assert.equal(b.value, 600);
+});
+
+test('a vendor who cannot take the date is never ordered from', () => {
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const o = parseOccasion(PROMPT);
+  const date = o.serveAt.slice(0, 10);
+  const booked = vendors.filter(v => (v.blackout_dates || []).includes(date));
+  assert.ok(booked.length, 'the demo set contains a vendor booked on the service date');
+
+  const plan = assemblePlan(o, vendors, 'pickup');
+  for (const v of booked) {
+    assert.ok(!plan.basket.vendorsUsed.includes(v.slug), `${v.slug} is booked and must not be in the order`);
+  }
+});
+
+test('a vendor left out for being booked is named, not silently dropped', () => {
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const plan = assemblePlan(parseOccasion(PROMPT), vendors, 'pickup');
+  assert.ok(plan.basket.excluded.length, 'the exclusion is recorded');
+  for (const e of plan.basket.excluded) {
+    assert.ok(e.name, 'named');
+    assert.match(e.reason, /booked on \d{4}-\d{2}-\d{2}/, 'with the reason and the date');
+  }
+});
+
+test('no option anywhere orders from a vendor who is booked', async () => {
+  const { buildOptions } = await import('../shared/plan.js');
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const o = parseOccasion(PROMPT);
+  const date = o.serveAt.slice(0, 10);
+  const bookedSlugs = vendors.filter(v => (v.blackout_dates || []).includes(date)).map(v => v.slug);
+  for (const opt of buildOptions(o, vendors, 'pickup')) {
+    for (const slug of opt.plan.basket.vendorsUsed) {
+      assert.ok(!bookedSlugs.includes(slug), `${opt.id} orders from booked ${slug}`);
+    }
+  }
+});
+
+test('an occasion with nobody to feed produces an empty baseline, not a crash', () => {
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const empty = naiveBasket(parseOccasion('0 people'), vendors);
+  assert.deepEqual(empty.items, []);
+  assert.equal(empty.subtotal, 0);
+  assert.deepEqual(empty.vendorsUsed, []);
+});
+
+test('with no vendors at all, nothing throws', () => {
+  const o = parseOccasion(PROMPT);
+  assert.doesNotThrow(() => naiveBasket(o, []));
+  assert.deepEqual(naiveBasket(o, []).items, []);
+  assert.doesNotThrow(() => composeBasket(o, []));
+  assert.deepEqual(composeBasket(o, []).items, []);
 });

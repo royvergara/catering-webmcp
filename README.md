@@ -13,7 +13,8 @@ vendors, shows the arithmetic, and tells you what the order leaves you holding.
    tradeoffs stated, not one answer presented as the answer.
 2. **What the order leaves you doing** — service level decides whether you or the caterer
    holds temperature, refills trays, and cleans up.
-3. **What will not work** — coverage per dietary group, and timing against safe holding.
+3. **What will not work** — coverage per dietary group, timing against safe holding, and
+   whether the vendors can even take the date.
 
 ## Why WebMCP
 
@@ -28,7 +29,7 @@ That one addition turns separate purchases into a plan.
 ## Testing
 
 ```
-npm test          # 130 tests: engine checks, corrections, replanning, trust, tool contracts.
+npm test          # 140 tests: engine checks, corrections, replanning, trust, tool contracts.
                   # No browser needed.
 npm run dev       # serve at :8080
 ```
@@ -74,7 +75,7 @@ smoke.html          day-one tool discovery test
 index.html          hub, links every vendor
 vendor.html?v=slug  vendor page; registers 5 tools from data/vendors/<slug>.json
 plan.html           the planner; registers its own tools
-engine/engine.js    pure checks: quantity, coverage, unclaimed, timing, budget
+engine/engine.js    pure checks: quantity, coverage, unclaimed, timing, availability, budget
 engine/assumptions.js  what the plan inferred; editable, and confirmed values stick
 engine/replan.js    change an input, report only what broke
 engine/trust.js     vendor text is data: field allowlist + injection quarantine

@@ -70,6 +70,18 @@ export function composeBasket(occasion, vendors, { only = null, prefer = 'value'
   let caterers = vendors.filter(v => v.kind === 'caterer' || v.kind === 'bakery');
   if (only) caterers = caterers.filter(v => only.includes(v.slug));
 
+  // A vendor who cannot take the date is not a candidate. Excluded rather than
+  // silently ordered from, and named, so the exclusion is visible.
+  const date = String(occasion.serveAt || '').slice(0, 10);
+  const excluded = [];
+  if (date) {
+    caterers = caterers.filter(v => {
+      if (!(v.blackout_dates || []).includes(date)) return true;
+      excluded.push({ vendor: v.slug, name: v.name, reason: `booked on ${date}` });
+      return false;
+    });
+  }
+
   const pool = [];
   for (const v of caterers) {
     for (const item of v.menu) {
@@ -134,6 +146,7 @@ export function composeBasket(occasion, vendors, { only = null, prefer = 'value'
     vendorsUsed,
     demand,
     uncovered,
+    excluded,
     shortOz: Math.max(0, demand.proteinOz - chosen.filter(i => i.category === 'main').reduce((n, i) => n + i.oz, 0)),
     splitReason: vendorsUsed.length > 1
       ? 'coverage: no single vendor covered every dietary group within budget'
@@ -192,7 +205,8 @@ export function assemblePlan(occasion, vendors, serviceLevel = 'pickup', opts = 
     requirementsByVendor[slug] = { ...(v.requirements[lvl] || {}), service_level: lvl, assumed: !!v.requirements[lvl]?.assumed };
   }
 
-  const { findings } = runChecks({ basket, occasion: useOccasion, requirementsByVendor });
+  const vendorsBySlug = Object.fromEntries(useVendors.map(v => [v.slug, v]));
+  const { findings } = runChecks({ basket, occasion: useOccasion, requirementsByVendor, vendorsBySlug });
   // Derive from the occasion as given, not as corrected: that is what lets a confirmed
   // value be reported as standing against a description that still says otherwise.
   const assumptions = carryConfirmed(deriveAssumptions(occasion, basket), prior);
@@ -353,8 +367,12 @@ export function naiveBasket(occasion, vendors) {
   const demand = deriveDemand(occasion);
   const caterers = vendors.filter(v => v.kind === 'caterer');
   const v = caterers[0];
-  const main = v.menu.find(i => i.category === 'main');
-  const n = Math.ceil(occasion.headcount / main.claimed_serves);
+  const main = v && v.menu.find(i => i.category === 'main');
+  const n = main ? Math.ceil((occasion.headcount || 0) / main.claimed_serves) : 0;
+  // nobody to order from, or nobody to feed: an empty baseline, not a crash
+  if (!n) {
+    return { items: [], why: [], subtotal: 0, vendorsUsed: [], demand, splitReason: null, pickups: [] };
+  }
   const items = Array.from({ length: n }, () => ({
     ...main, vendor: v.slug, vendorName: v.name, tier: v.tier,
     oz: normalizeItem(main).normalized.protein_oz

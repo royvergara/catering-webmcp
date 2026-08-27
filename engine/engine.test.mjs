@@ -96,3 +96,46 @@ test('blockers sort ahead of risks', () => {
   const { findings } = runChecks({ basket, occasion });
   assert.equal(findings[0].severity, 'blocker');
 });
+
+// ---------- availability ----------
+const bookedVendor = {
+  slug: 'busy', name: 'Fully Booked Co', lead_time_hours: 48,
+  blackout_dates: ['2026-09-12']
+};
+const freeVendor = { slug: 'free', name: 'Open Kitchen', lead_time_hours: 24, blackout_dates: [] };
+
+test('a vendor booked on the date is caught, because their own tool says so', () => {
+  const basket = { items: [], pickups: [], vendorsUsed: ['busy'] };
+  const { findings } = runChecks({ basket, occasion, vendorsBySlug: { busy: bookedVendor } });
+  const a = findings.find(f => f.check === 'availability');
+  assert.ok(a, 'availability fires');
+  assert.equal(a.severity, 'blocker');
+  assert.match(a.message, /booked on 2026-09-12/);
+});
+
+test('a vendor who is free on the date raises nothing', () => {
+  const basket = { items: [], pickups: [], vendorsUsed: ['free'] };
+  const { findings } = runChecks({ basket, occasion, vendorsBySlug: { free: freeVendor } });
+  assert.ok(!findings.some(f => f.check === 'availability'));
+});
+
+test('too little notice for the vendor lead time is caught, once we know when it was placed', () => {
+  const basket = { items: [], pickups: [], vendorsUsed: ['free'] };
+  const rushed = { ...occasion, placedAt: '2026-09-12T06:00:00-05:00' };   // 12h before
+  const { findings } = runChecks({ basket, occasion: rushed, vendorsBySlug: { free: freeVendor } });
+  const a = findings.find(f => f.check === 'availability');
+  assert.ok(a, 'lead time fires');
+  assert.match(a.message, /needs 24h notice and this order gives 12h/);
+});
+
+test('without an order date, lead time is not guessed at', () => {
+  const basket = { items: [], pickups: [], vendorsUsed: ['free'] };
+  const { findings } = runChecks({ basket, occasion, vendorsBySlug: { free: freeVendor } });
+  assert.ok(!findings.some(f => f.check === 'availability'), 'no placedAt, no claim');
+});
+
+test('a vendor the planner knows nothing about is not accused of anything', () => {
+  const basket = { items: [], pickups: [], vendorsUsed: ['stranger'] };
+  const { findings } = runChecks({ basket, occasion, vendorsBySlug: {} });
+  assert.ok(!findings.some(f => f.check === 'availability'));
+});

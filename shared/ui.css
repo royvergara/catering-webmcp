@@ -113,3 +113,7 @@ a{ color:var(--carbon); }
   .chit-body{ padding:.75rem; }
 }
 .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+
+/* A field carrying the mono utility keeps it: `.field { font: inherit }` would
+   otherwise win on load order and render the textarea in the sans face. */
+.field.font-mono{ font-family:'IBM Plex Mono', ui-monospace, monospace; }
