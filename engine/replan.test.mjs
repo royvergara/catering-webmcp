@@ -2,7 +2,7 @@ import assert from 'node:assert';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { parseOccasion, assemblePlan, replan } from '../shared/plan.js';
-import { diffFindings, summarizeDelta, findingKey, CHECKS } from './replan.js';
+import { diffFindings, summarizeDelta, findingKey, CHECKS, diffOccasion, describeOccasionChange } from './replan.js';
 import { checkBudget } from './engine.js';
 
 const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
@@ -112,4 +112,43 @@ test('every replan reports a cost line whenever the order moved', () => {
   const moved = after.basket.subtotal !== before.basket.subtotal;
   assert.equal(Boolean(delta.cost), moved);
   if (moved) assert.match(delta.cost, new RegExp(`now \\$${after.basket.subtotal}`));
+});
+
+test('every check the engine runs can be named in a delta', async () => {
+  const { runChecks } = await import('./engine.js');
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const p = assemblePlan(parseOccasion(PROMPT), vendors, 'pickup');
+  // anything a finding can be about must have a label, or "still fine" silently omits it
+  for (const f of p.findings) {
+    assert.ok(CHECKS[f.check], `${f.check} has no label, so a delta cannot report it`);
+  }
+  const booked = runChecks({
+    basket: { items: [], pickups: [], vendorsUsed: ['x'] },
+    occasion: { serveAt: '2026-09-12T18:00:00-05:00' },
+    vendorsBySlug: { x: { name: 'X', blackout_dates: ['2026-09-12'] } }
+  }).findings;
+  assert.ok(booked.length, 'availability really can produce a finding');
+  for (const f of booked) assert.ok(CHECKS[f.check], `${f.check} has no label`);
+});
+
+test('describing what a description changed reads as plain sentences', () => {
+  const before = { headcount: 40, budget: 600, dietary: { vegetarian: 6 }, venueHasKitchen: false, durationHours: 3 };
+  const after  = { headcount: 80, budget: 600, dietary: { vegetarian: 6 }, venueHasKitchen: false, durationHours: 3 };
+  assert.deepEqual(diffOccasion(before, before), [], 'no change is no change');
+  assert.equal(describeOccasionChange(diffOccasion(before, before)), 'Nothing in the description changed.');
+  assert.match(describeOccasionChange(diffOccasion(before, after)), /^Read again: Headcount 40 -> 80\.$/);
+});
+
+test('a dietary group that appears or vanishes is reported', () => {
+  const before = { dietary: { vegetarian: 6 } };
+  const added = diffOccasion(before, { dietary: { vegetarian: 6, vegan: 3 } });
+  assert.deepEqual(added, [{ label: 'vegan guests', from: '0', to: '3' }]);
+  const gone = diffOccasion(before, { dietary: {} });
+  assert.deepEqual(gone, [{ label: 'vegetarian guests', from: '6', to: '0' }]);
+});
+
+test('a budget change is shown as money', () => {
+  const c = diffOccasion({ budget: 600 }, { budget: 1200 });
+  assert.deepEqual(c, [{ label: 'Budget', from: '$600', to: '$1200' }]);
 });

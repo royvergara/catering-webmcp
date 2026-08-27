@@ -1,0 +1,17 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "headers": [
+    {
+      "source": "/shared/fonts/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+      ]
+    },
+    {
+      "source": "/data/vendors/(.*)",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=300" }
+      ]
+    }
+  ]
+}

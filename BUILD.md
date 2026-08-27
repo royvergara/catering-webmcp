@@ -6,7 +6,7 @@ Deploy the folder as-is to Netlify, Vercel, or Cloudflare Pages.
 ## Run locally
 ```
 npm run dev     # http://localhost:8080
-npm test        # engine unit tests (67, all passing)
+npm test        # engine unit tests (150, all passing)
 ```
 
 ## What exists now
@@ -14,15 +14,19 @@ npm test        # engine unit tests (67, all passing)
 |---|---|
 | `smoke.html` | done — registers `ping` + `get_page_facts`. Day one verification. |
 | `shared/ui.css` | done |
-| `engine/engine.js` | done — 5 pure checks: quantity, coverage, unclaimed, timing, budget |
+| `engine/engine.js` | done — 6 pure checks: quantity, coverage, unclaimed, timing, availability, budget |
 | `engine/assumptions.js` | done — what the plan inferred; editable, confirmed values stick |
 | `engine/replan.js` | done — change an input, report only what broke |
 | `engine/trust.js` | done — field allowlist + injection quarantine |
-| `engine/*.test.mjs` | done — 67 tests passing |
+| `engine/options.js` | done — two or three orders, ranked and described by tradeoff |
+| `engine/adapters.js` | done — T0-T4 readers, one record shape, capability matrix |
+| `gradient.html` | done — the same question at four tiers, side by side |
+| `engine/schedule.js` | done — the job/when/who table, timed off the event's own clock |
+| `engine/*.test.mjs` | done — 150 tests passing |
 | `data/vendors/*.json` | 7 written, one of them deliberately hostile |
 | `vendor.html` | done — one template, driven by `?v=<slug>`, registers 5 tools |
 | `index.html` | done — hub |
-| `plan.html` | done — registers 9 tools |
+| `plan.html` | done — registers 11 tools |
 
 ## Order of work
 
@@ -54,13 +58,15 @@ The organizer surface. Registers its own tools so the URL works standalone:
 
 - `plan_meal(description)` → parse the occasion, run `deriveDemand`, return the need list
 - `build_basket(service_level)` → an order across vendors, with the arithmetic behind each quantity
+- `build_options(service_level)` → two or three orders with their tradeoffs; does not choose
+- `choose_option(option)` → pick one; the plan below follows the choice
 - `check_plan()` → call `runChecks`, return findings sorted by severity
 - `negotiate(constraint)` → gather `propose_accommodation` from every vendor
 - `list_assumptions()` → every inferred number, its source, confidence, and whether it is confirmed
 - `revise(assumption, value)` → correction path; recompute downstream; mark as user-confirmed
 - `replan(...)` → change one input, return only what broke
 - `explain_ranking()` → the deterministic ranking, and any instruction a vendor tried to give the agent
-- `share_plan()` → the job/when/who table
+- `share_plan()` → the job/when/who table, in the order the day runs
 
 UI requirements:
 - Every tool call is visible on screen as it happens ("asking Green Fork…"). If it is
@@ -100,7 +106,7 @@ Node import the same definitions, so almost everything is testable from the term
 
 **Three levels, cheapest first:**
 
-1. `npm test` — 67 tests. Engine checks, corrections, replanning and the trust boundary, plus
+1. `npm test` — 150 tests. Engine checks, corrections, replanning and the trust boundary, plus
    tool contracts: every tool has a snake_case name, a real description, an object schema,
    JSON-serialisable output, service-level-dependent requirements, blackout dates honoured,
    holds never binding. Run this on every change.

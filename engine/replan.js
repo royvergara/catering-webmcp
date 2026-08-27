@@ -9,6 +9,7 @@ export const CHECKS = {
   coverage: 'dietary coverage',
   unclaimed: 'jobs with an owner',
   timing: 'timing and safe holding',
+  availability: 'vendors free on the date',
   budget: 'budget'
 };
 
@@ -23,7 +24,8 @@ export const findingKey = f =>
 function magnitude(f) {
   if (f.needed !== undefined && f.supplied !== undefined) return f.needed - f.supplied;
   if (f.over !== undefined) return f.over;
-  if (f.resources) return f.resources.length;
+  // an unclaimed complaint is as big as everything it leaves unowned, pooled and per-vendor
+  if (f.resources) return f.resources.length + (f.perVendor ? f.perVendor.length : 0);
   if (f.hours !== undefined) return f.hours;
   if (f.minutes !== undefined) return -f.minutes;   // less time is worse
   return null;
@@ -76,4 +78,39 @@ export function summarizeDelta(delta) {
     lines.push('Nothing broke. Everything that was true before is still true.');
   }
   return lines;
+}
+
+// ---------- what the description actually said differently ----------
+// "Re-read from a new description" tells a person nothing. These are the inputs a
+// description carries, so a re-read can report what it actually read differently.
+export const INPUT_FIELDS = [
+  { path: 'headcount',       label: 'Headcount' },
+  { path: 'budget',          label: 'Budget', money: true },
+  { path: 'durationHours',   label: 'Hours of service' },
+  { path: 'venueHasKitchen', label: 'Kitchen at the venue', boolean: true }
+];
+
+const show = (f, v) => (f.money ? `$${v}` : f.boolean ? (v ? 'yes' : 'no') : String(v));
+
+export function diffOccasion(before = {}, after = {}) {
+  const changes = [];
+  for (const f of INPUT_FIELDS) {
+    if (before[f.path] !== after[f.path]) {
+      changes.push({ label: f.label, from: show(f, before[f.path]), to: show(f, after[f.path]) });
+    }
+  }
+  const groups = new Set([
+    ...Object.keys(before.dietary || {}), ...Object.keys(after.dietary || {})
+  ]);
+  for (const g of [...groups].sort()) {
+    const b = before.dietary?.[g] ?? 0;
+    const a = after.dietary?.[g] ?? 0;
+    if (b !== a) changes.push({ label: `${g.replace(/_/g, ' ')} guests`, from: String(b), to: String(a) });
+  }
+  return changes;
+}
+
+export function describeOccasionChange(changes) {
+  if (!changes.length) return 'Nothing in the description changed.';
+  return 'Read again: ' + changes.map(c => `${c.label} ${c.from} -> ${c.to}`).join(', ') + '.';
 }

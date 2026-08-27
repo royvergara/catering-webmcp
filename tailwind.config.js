@@ -1,6 +1,16 @@
 // Design tokens. Single source of truth for every page.
 // Direction: kitchen operations — order chits, prep tickets, service tape.
-tailwind.config = {
+//
+// This is NOT part of running the site. The site loads one plain stylesheet,
+// shared/tailwind.css, which is committed. This file exists only to regenerate
+// that stylesheet when a token or a utility class changes:
+//
+//   npx tailwindcss@3 -c tailwind.config.js -i shared/tailwind.in.css \
+//     -o shared/tailwind.css --minify
+//
+// Nothing here is installed, and `npm test` and `npm run dev` do not touch it.
+module.exports = {
+  content: ['./*.html', './shared/*.js'],
   theme: {
     extend: {
       colors: {

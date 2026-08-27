@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
-import { parseOccasion, composeBasket, assemblePlan, ownershipTable, explainQuantity } from '../shared/plan.js';
+import { parseOccasion, composeBasket, assemblePlan, ownershipTable, explainQuantity, naiveBasket } from '../shared/plan.js';
 
 const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
   .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
@@ -91,4 +91,122 @@ test('the naive single-vendor order fails coverage that the composed one passes'
   const good = composeBasket(o, vendors);
   const gf = runChecks({ basket: { ...good, pickups: [] }, occasion: o }).findings;
   assert.ok(!gf.some(f => f.check === 'coverage'), 'composed order covers every group');
+});
+
+test('a headcount is not read as a budget', () => {
+  // "$?\s?(\d{3,5})" matched the first three-digit number, so 100 people cost $100
+  const o = parseOccasion('100 people, $1200, ten vegetarians');
+  assert.equal(o.headcount, 100);
+  assert.equal(o.budget, 1200, 'the figure marked as money is the budget');
+});
+
+test('a headcount written any of the usual ways is read, not defaulted', () => {
+  const cases = {
+    '40 people, $600': 40,
+    'party for 60 on Friday night, $900': 60,
+    'lunch for 12': 12,
+    'group of 200, budget 3,500': 200,
+    '25 guests, budget around $400': 25
+  };
+  for (const [text, expected] of Object.entries(cases)) {
+    assert.equal(parseOccasion(text).headcount, expected, `headcount in: ${text}`);
+  }
+});
+
+test('thousands separators survive parsing', () => {
+  assert.equal(parseOccasion('group of 200, budget 3,500').budget, 3500);
+});
+
+test('a time of day is never mistaken for a headcount', () => {
+  const o = parseOccasion('40 people, Saturday at 6, $600');
+  assert.equal(o.headcount, 40);
+});
+
+test('what the description did not say is marked assumed, not read', () => {
+  const stated = parseOccasion('40 people, $600');
+  assert.equal(stated.found.headcount, true);
+  assert.equal(stated.found.budget, true);
+
+  const vague = parseOccasion('feed the team, 8 vegetarians');
+  assert.equal(vague.found.headcount, false, 'nobody said how many people');
+  assert.equal(vague.found.budget, false, 'nobody said a budget');
+  assert.equal(vague.headcount, 40, 'a default is still used so the plan can run');
+  assert.equal(vague.found.serveAt, false, 'the demo service time is a fixture, and says so');
+});
+
+test('a defaulted input is presented as an assumption, not as something you said', () => {
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const plan = assemblePlan(parseOccasion('feed the team, 8 vegetarians'), vendors, 'pickup');
+  const hc = plan.assumptions.find(a => a.id === 'occasion.headcount');
+  assert.equal(hc.source, 'default');
+  assert.match(hc.basis, /nobody said how many/);
+
+  const stated = assemblePlan(parseOccasion('40 people, $600'), vendors, 'pickup');
+  assert.equal(stated.assumptions.find(a => a.id === 'occasion.headcount').source, 'parsed');
+});
+
+test('the budget is an editable assumption like everything else it drives', () => {
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const plan = assemblePlan(parseOccasion(PROMPT), vendors, 'pickup');
+  const b = plan.assumptions.find(a => a.id === 'occasion.budget');
+  assert.ok(b, 'the budget is listed');
+  assert.equal(b.value, 600);
+});
+
+test('a vendor who cannot take the date is never ordered from', () => {
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const o = parseOccasion(PROMPT);
+  const date = o.serveAt.slice(0, 10);
+  const booked = vendors.filter(v => (v.blackout_dates || []).includes(date));
+  assert.ok(booked.length, 'the demo set contains a vendor booked on the service date');
+
+  const plan = assemblePlan(o, vendors, 'pickup');
+  for (const v of booked) {
+    assert.ok(!plan.basket.vendorsUsed.includes(v.slug), `${v.slug} is booked and must not be in the order`);
+  }
+});
+
+test('a vendor left out for being booked is named, not silently dropped', () => {
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const plan = assemblePlan(parseOccasion(PROMPT), vendors, 'pickup');
+  assert.ok(plan.basket.excluded.length, 'the exclusion is recorded');
+  for (const e of plan.basket.excluded) {
+    assert.ok(e.name, 'named');
+    assert.match(e.reason, /booked on \d{4}-\d{2}-\d{2}/, 'with the reason and the date');
+  }
+});
+
+test('no option anywhere orders from a vendor who is booked', async () => {
+  const { buildOptions } = await import('../shared/plan.js');
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const o = parseOccasion(PROMPT);
+  const date = o.serveAt.slice(0, 10);
+  const bookedSlugs = vendors.filter(v => (v.blackout_dates || []).includes(date)).map(v => v.slug);
+  for (const opt of buildOptions(o, vendors, 'pickup')) {
+    for (const slug of opt.plan.basket.vendorsUsed) {
+      assert.ok(!bookedSlugs.includes(slug), `${opt.id} orders from booked ${slug}`);
+    }
+  }
+});
+
+test('an occasion with nobody to feed produces an empty baseline, not a crash', () => {
+  const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
+    .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
+  const empty = naiveBasket(parseOccasion('0 people'), vendors);
+  assert.deepEqual(empty.items, []);
+  assert.equal(empty.subtotal, 0);
+  assert.deepEqual(empty.vendorsUsed, []);
+});
+
+test('with no vendors at all, nothing throws', () => {
+  const o = parseOccasion(PROMPT);
+  assert.doesNotThrow(() => naiveBasket(o, []));
+  assert.deepEqual(naiveBasket(o, []).items, []);
+  assert.doesNotThrow(() => composeBasket(o, []));
+  assert.deepEqual(composeBasket(o, []).items, []);
 });

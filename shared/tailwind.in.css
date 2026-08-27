@@ -1,0 +1,5 @@
+/* Input for the committed shared/tailwind.css. See tailwind.config.js for the
+   regenerate command. The site loads the generated file, never this one. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

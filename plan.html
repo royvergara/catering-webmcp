@@ -4,11 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Planner · Catering WebMCP</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.tailwindcss.com"></script>
-<script src="/shared/theme.js"></script>
+<link rel="stylesheet" href="/shared/fonts.css">
+<link rel="stylesheet" href="/shared/tailwind.css">
 <link rel="stylesheet" href="/shared/ui.css">
 </head>
 <body class="font-sans">
@@ -16,8 +13,13 @@
 
 <main class="mx-auto max-w-3xl px-5 py-8">
   <h1 class="font-display font-extrabold tracking-tightest text-[clamp(1.8rem,6vw,2.6rem)] leading-tight mb-2">Planner</h1>
-  <p class="text-ink-soft text-[16px] mb-6 max-w-xl">
+  <p class="text-ink-soft text-[16px] mb-3 max-w-xl">
     Describe the occasion once. This works out what to order and how much, then tells you what the order leaves you holding.
+  </p>
+  <p class="text-ink-mute text-[14px] mb-6 max-w-xl">
+    Three things worth trying: <strong class="text-ink-soft">edit the description and press Plan it</strong>,
+    <strong class="text-ink-soft">change a number under “What this rests on”</strong>, or
+    <strong class="text-ink-soft">switch the service level</strong>. Each one rebuilds the plan and reports only what moved.
   </p>
 
   <!-- input -->
@@ -35,6 +37,7 @@
         </select>
         <button id="go" class="btn ml-auto">Plan it</button>
       </div>
+      <p id="runNote" class="m-0 mt-3 text-[13px] text-ink-mute" aria-live="polite"></p>
       <pre id="err" class="readout mt-3" hidden></pre>
     </div>
   </section>
@@ -49,6 +52,18 @@
   <section class="chit mb-4" id="naiveCard" hidden>
     <div class="chit-head"><span class="chit-title">What you would have ordered</span><span class="chit-note">one vendor, sized by headcount</span></div>
     <div class="chit-body" id="naive"></div>
+  </section>
+
+  <!-- options: the agent gathers and reasons, the person decides -->
+  <section class="chit mb-4" id="optionsCard" hidden>
+    <div class="chit-head"><span class="chit-title">Two or three ways to do this</span><span class="chit-note" id="optionsNote"></span></div>
+    <div class="chit-body">
+      <p class="m-0 mb-3 text-[14px] text-ink-soft">
+        Every one of these trades money against effort against risk. Pick the one whose
+        friction you will actually tolerate — the plan below follows your choice.
+      </p>
+      <div id="options"></div>
+    </div>
   </section>
 
   <!-- composed order -->
@@ -118,7 +133,7 @@ window.addEventListener('unhandledrejection', e => {
 </script>
 
 <script type="module">
-import { parseOccasion, assemblePlan, revisePlan, replan, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
+import { parseOccasion, assemblePlan, revisePlan, replan, buildOptions, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
 import { runChecks } from '/engine/engine.js';
 import { CHECKS as CHECK_LABELS } from '/engine/replan.js';
 import { mountHeader, badge, tierBadge, money, label, esc } from '/shared/ui.js';
@@ -128,9 +143,10 @@ mountHeader('Planner');
 // never rely on implicit id globals: `status`, `name`, `length` are window built-ins
 const $ = id => document.getElementById(id);
 const els = {
-  q: $('q'), lvl: $('lvl'), go: $('go'), statusLine: $('statusLine'), err: $('err'),
+  q: $('q'), lvl: $('lvl'), go: $('go'), statusLine: $('statusLine'), err: $('err'), runNote: $('runNote'),
   naiveCard: $('naiveCard'), naive: $('naive'),
   deltaCard: $('deltaCard'), delta: $('delta'), deltaNote: $('deltaNote'),
+  optionsCard: $('optionsCard'), options: $('options'), optionsNote: $('optionsNote'),
   basketCard: $('basketCard'), basket: $('basket'), basketNote: $('basketNote'), math: $('math'),
   assumeCard: $('assumeCard'), assumptions: $('assumptions'), assumeNote: $('assumeNote'),
   findCard: $('findCard'), findings: $('findings'),
@@ -141,6 +157,10 @@ const els = {
 const SLUGS = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','prime-platters','loop-rentals','handoff-staffing'];
 let vendors = [];
 let current = null;
+let options = [];
+let chosenId = null;
+let plannedText = null;   // the description the plan on screen was built from
+let firstRun = true;
 const calls = [];
 
 function log(tool, input, output) {
@@ -150,12 +170,14 @@ function log(tool, input, output) {
 
 function render(plan) {
   current = plan;
-  for (const c of ['naiveCard','basketCard','assumeCard','findCard','ownCard','trustCard']) { els[c].hidden = false; els[c].classList.add('rise'); }
+  for (const c of ['naiveCard','optionsCard','basketCard','assumeCard','findCard','ownCard','trustCard']) { els[c].hidden = false; els[c].classList.add('rise'); }
 
   // baseline
   const nb = naiveBasket(plan.occasion, vendors);
   const nf = runChecks({ basket: { ...nb, pickups: [] }, occasion: plan.occasion }).findings;
-  els.naive.innerHTML = `
+  els.naive.innerHTML = !nb.items.length
+    ? '<div class="text-[14px] text-ink-mute">Nothing to order for this occasion.</div>'
+    : `
     <div class="font-mono text-[13px] mb-3">${nb.items.length} &times; ${esc(nb.items[0].name)}
       <span class="text-ink-mute">· ${esc(nb.items[0].vendorName)}</span>
       <span class="float-right">${money(nb.subtotal)}</span></div>
@@ -179,13 +201,18 @@ function render(plan) {
        <span class="row-num font-semibold">${money(plan.basket.subtotal)}</span>
      </div>` +
     (plan.basket.splitReason
-      ? `<p class="mt-3 text-[13px] text-ink-mute font-sans m-0">Split across vendors — ${esc(plan.basket.splitReason)}</p>` : '');
+      ? `<p class="mt-3 text-[13px] text-ink-mute font-sans m-0">Split across vendors — ${esc(plan.basket.splitReason)}</p>` : '') +
+    // a vendor left out of the running is named, so the exclusion is visible
+    ((plan.basket.excluded || []).length
+      ? `<p class="mt-2 text-[13px] text-ink-mute font-sans m-0">Left out: ${
+          plan.basket.excluded.map(e => `${esc(e.name)} — ${esc(e.reason)}`).join('; ')}.</p>` : '');
 
   const firstMain = plan.basket.items.find(i => i.category === 'main');
   els.math.textContent = [...plan.basket.why, '',
     ...(firstMain ? explainQuantity(firstMain, plan.occasion, plan.basket.demand) : [])].join('\n');
 
   renderAssumptions(plan);
+  renderOptions();
   renderTrust(plan);
 
   // findings
@@ -206,15 +233,51 @@ function render(plan) {
   const rows = ownershipTable(plan, vendors);
   const yours = rows.filter(r => r.who === 'You').length;
   els.ownNote.textContent = `${yours} of ${rows.length} jobs are yours`;
+  // job, when, who — the middle column is the one a receipt never shows
   els.owners.innerHTML = rows.map(r => `
-    <div class="row">
-      <span class="row-name">${r.who === 'You' ? `<span class="tape">${label(r.job)}</span>` : label(r.job)}</span>
-      <span class="row-num ${r.who === 'You' ? 'font-semibold' : 'text-ink-mute'}">${r.who}</span>
+    <div class="row items-baseline">
+      <span class="row-name">${r.who === 'You' ? `<span class="tape">${esc(label(r.job))}</span>` : esc(label(r.job))}${
+        r.for ? `<span class="text-ink-mute"> for ${esc(r.for)}</span>` : ''}</span>
+      <span class="text-ink-mute px-3 whitespace-nowrap">${esc(r.when)}</span>
+      <span class="row-num ${r.who === 'You' ? 'font-semibold' : 'text-ink-mute'}">${esc(r.who)}</span>
     </div>`).join('');
 
   els.findings.querySelectorAll('.neg').forEach(b => {
     b.onclick = () => negotiate(b.dataset.c, b.dataset.i);
   });
+}
+
+function renderOptions() {
+  els.optionsNote.textContent = options.length
+    ? `${options.length} on the table` : 'no options';
+  els.options.innerHTML = options.map(o => `
+    <button data-opt="${esc(o.id)}" aria-pressed="${o.id === chosenId}"
+            class="w-full text-left py-3 px-3 mb-2 rounded-chit border ${
+              o.id === chosenId ? 'border-carbon bg-carbon-soft' : 'border-rule bg-paper-card hover:border-rule-strong'}">
+      <div class="flex flex-wrap items-baseline gap-2">
+        <span class="font-semibold text-[15px]">${esc(o.summary)}</span>
+        ${o.recommended ? badge('ok', 'recommended') : ''}
+        ${o.id === chosenId ? badge('tier', 'chosen') : ''}
+      </div>
+      ${o.costs.length ? `<p class="m-0 mt-1 text-[13px] text-ink-mute">${o.costs.map(esc).join(' · ')}</p>` : ''}
+      ${o.split ? `<p class="m-0 mt-1 text-[13px] ${o.split.reason ? 'text-ink-mute' : 'text-short'}">${
+        o.split.reason ? `Split justified by ${esc(o.split.reason)}: ${esc(o.split.says)}.`
+                       : `${esc(o.split.says)}.`}</p>` : ''}
+    </button>`).join('');
+
+  els.options.querySelectorAll('[data-opt]').forEach(b => {
+    b.addEventListener('click', () => choose(b.dataset.opt));
+  });
+}
+
+function choose(id) {
+  const o = options.find(x => x.id === id);
+  if (!o || id === chosenId) return;
+  chosenId = id;
+  log('choose_option', { option: id }, { summary: o.summary, subtotal: o.subtotal });
+  render(o.plan);
+  status(o.plan);
+  announce(`Switched to ${o.summary}`, o.plan, { rebuilt: false });
 }
 
 function renderTrust(plan) {
@@ -299,10 +362,21 @@ function applyChange(change) {
   try {
     els.err.hidden = true;
     const { plan, delta } = replan(current, vendors, change);
+    // the other options moved too; rebuild them, keeping the one you chose
+    options = buildOptions(plan.baseOccasion || plan.occasion, vendors, plan.serviceLevel,
+                           { assumptions: plan.assumptions });
+    if (!options.some(o => o.id === chosenId)) {
+      chosenId = (options.find(o => o.recommended) || {}).id ?? null;
+    }
     log('replan', change, { summary: delta.lines });
     render(plan);
     renderDelta(delta);
     status(plan);
+    plannedText = els.q.value;
+    announce(change.description !== undefined ? 'Re-planned from your description'
+             : change.serviceLevel ? `Re-planned at ${change.serviceLevel.replace(/_/g, ' ')}`
+             : 'Rebuilt from your correction', plan);
+    revealDelta();
     return plan;
   } catch (e) {
     els.err.hidden = false;
@@ -320,6 +394,8 @@ function renderDelta(delta) {
   els.deltaNote.textContent = brokeCount
     ? `${brokeCount} now broken`
     : 'nothing broke';
+  els.deltaNote.dataset.fresh = els.deltaNote.textContent;
+  els.deltaCard.classList.remove('stale');
 
   // the badge says what happened; the severity says how bad the finding itself is
   const line = (kind, what, text) =>
@@ -337,6 +413,39 @@ function renderDelta(delta) {
     (delta.stillFine.length
       ? `<p class="m-0 mt-2 text-[13px] text-ink-mute">Still fine: ${delta.stillFine.map(c => CHECK_LABELS[c]).join(', ')}.</p>`
       : '');
+}
+
+// Every run says what it just did. Without this the page looks static: it recomputes
+// in under a frame, so nothing on screen tells you a click did anything.
+function announce(action, plan, { rebuilt = true } = {}) {
+  const checks = Object.keys(CHECK_LABELS).length;
+  const blockers = plan.findings.filter(f => f.severity === 'blocker').length;
+  const found = blockers === 0 ? 'No blockers.' : blockers === 1 ? '1 blocker on it.' : `${blockers} blockers on it.`;
+  els.runNote.textContent = rebuilt
+    ? `${action} — read ${vendors.length} vendor sources, composed ${options.length} option${
+        options.length === 1 ? '' : 's'}, ran ${checks} checks. ${found}`
+    : `${action}. ${found}`;
+  els.runNote.classList.remove('flash');
+  void els.runNote.offsetWidth;          // restart the animation on a repeat run
+  els.runNote.classList.add('flash');
+}
+
+// Put the answer where the eye is: if the delta landed off screen, bring it into view.
+function revealDelta() {
+  const box = els.deltaCard.getBoundingClientRect();
+  if (box.top < 0 || box.bottom > window.innerHeight) {
+    els.deltaCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+// The description in the box no longer matches the plan on screen: say so, rather
+// than leaving a stale "what changed" that looks like an answer to the new text.
+function markDeltaStale() {
+  const stale = els.q.value !== plannedText;
+  els.deltaCard.classList.toggle('stale', stale && !els.deltaCard.hidden);
+  els.deltaNote.textContent = stale
+    ? 'you have edited the description since this — press Plan it'
+    : els.deltaNote.dataset.fresh || els.deltaNote.textContent;
 }
 
 function status(plan) {
@@ -366,12 +475,20 @@ function run() {
   try {
     const occasion = parseOccasion(els.q.value);
     // anything already confirmed survives a re-plan
-    const plan = assemblePlan(occasion, vendors, els.lvl.value, { assumptions: current?.assumptions || [] });
+    const carried = { assumptions: current?.assumptions || [] };
+    options = buildOptions(occasion, vendors, els.lvl.value, carried);
+    const top = options.find(o => o.recommended);
+    chosenId = top ? top.id : null;
+    const plan = top ? top.plan : assemblePlan(occasion, vendors, els.lvl.value, carried);
     log('plan_meal', { description: els.q.value, service_level: els.lvl.value },
-        { headcount: occasion.headcount, dietary: occasion.dietary, findings: plan.findings.length });
+        { headcount: occasion.headcount, dietary: occasion.dietary,
+          options: options.map(o => o.summary), findings: plan.findings.length });
     render(plan);
     els.deltaCard.hidden = true;   // a first plan has nothing to compare against
     status(plan);
+    plannedText = els.q.value;
+    announce(firstRun ? 'Planned when the page loaded' : 'Planned', plan);
+    firstRun = false;
     return plan;
   } catch (e) {
     els.err.hidden = false;
@@ -380,6 +497,7 @@ function run() {
   }
 }
 
+els.q.addEventListener('input', markDeltaStale);
 els.go.addEventListener('click', () => (current ? applyChange({ description: els.q.value }) : run()));
 els.lvl.addEventListener('change', () => (current ? applyChange({ serviceLevel: els.lvl.value }) : run()));
 
@@ -411,6 +529,33 @@ if (vendors.length && document.modelContext?.registerTool) {
     ({ service_level }) => { if (service_level) els.lvl.value = service_level; const p = run();
       return { items: p.basket.items.map(i => ({ name:i.name, vendor:i.vendorName, price:i.price, oz:i.oz, tier:i.tier })),
                subtotal: p.basket.subtotal, why: p.basket.why, split_reason: p.basket.splitReason }; });
+
+  reg('build_options', 'Two or three real orders for this occasion, each with its tradeoffs stated: what it covers, what it costs, what it leaves you doing, and why any split across vendors is justified. Does not choose — returns the choice.',
+    { type:'object', properties:{ service_level:{type:'string', enum:['pickup','delivery','dropoff_setup']} } },
+    ({ service_level }) => {
+      if (service_level) els.lvl.value = service_level;
+      run();
+      return {
+        options: options.map(o => ({
+          id: o.id, summary: o.summary, recommended: o.recommended,
+          subtotal: o.subtotal, vendors: o.vendorCount, items: o.itemCount,
+          virtues: o.virtues, costs: o.costs,
+          uncovered: o.uncovered, split: o.split
+        })),
+        chosen: chosenId,
+        basis: 'cover the people, then clear the blockers, then fewest vendors, then cost'
+      };
+    });
+
+  reg('choose_option', 'Pick one of the options from build_options. Everything below it — the order, the findings, and who is doing what — follows the choice.',
+    { type:'object', properties:{ option:{type:'string'} }, required:['option'] },
+    ({ option }) => {
+      if (!options.length) run();
+      const o = options.find(x => x.id === option);
+      if (!o) return { error: `no such option: ${option}`, available: options.map(x => x.id) };
+      choose(o.id);
+      return { chosen: o.id, summary: o.summary, subtotal: o.subtotal, findings: o.plan.findings };
+    });
 
   reg('check_plan', 'Report what the current order does not cover: quantity, dietary coverage, jobs nobody owns, and timing that breaks a food-safety rule.',
     { type:'object', properties:{} }, () => ({ findings: (current || run()).findings }));
@@ -476,8 +621,18 @@ if (vendors.length && document.modelContext?.registerTool) {
       };
     });
 
-  reg('share_plan', 'Return the job and owner table for this plan, including the jobs left to the host.',
-    { type:'object', properties:{} }, () => ({ rows: ownershipTable(current || run(), vendors) }));
+  reg('share_plan', 'The plan as something you can hand to another person: every job, when it has to happen, and who owns it — including the jobs that land on the host and appear on no receipt.',
+    { type:'object', properties:{} },
+    () => {
+      const plan = current || run();
+      const rows = ownershipTable(plan, vendors);
+      return {
+        serves_at: plan.occasion.serveAt,
+        rows: rows.map(r => ({ job: label(r.job), when: r.when, who: r.who })),
+        yours: rows.filter(r => r.who === 'You').length,
+        of: rows.length
+      };
+    });
 }
 
 if (vendors.length) run();
