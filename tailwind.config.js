@@ -24,7 +24,9 @@ module.exports = {
         covered:{ DEFAULT: '#0F6B4F', soft: '#E2F2EC' }    // ok
       },
       fontFamily: {
-        display: ['Archivo', 'system-ui', 'sans-serif'],
+        // No `display` family on purpose. The serif title face is set once, by
+        // .sheethead h1 in ui.css. Exposing it as font-display is how it ended up
+        // on card names, a button and a status line, all at once.
         sans:    ['"IBM Plex Sans"', 'system-ui', 'sans-serif'],
         mono:    ['"IBM Plex Mono"', 'ui-monospace', 'monospace']
       },

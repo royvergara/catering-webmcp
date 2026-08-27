@@ -12,13 +12,19 @@
 <div id="siteHeader"></div>
 
 <main class="mx-auto max-w-3xl px-5 py-8">
-  <h1 class="font-display font-extrabold tracking-tightest text-[clamp(1.8rem,6vw,2.4rem)] leading-tight mb-2">Smoke test</h1>
-  <p class="text-ink-soft text-[16px] mb-6 max-w-xl">One job: prove an agent can discover and call a tool on this page.</p>
+  <div class="sheethead">
+    <div class="sheethead-band">
+      <p class="kicker"><span class="kicker-no">05</span>Smoke test</p>
+      <p class="sheethead-meta">2 tools</p>
+    </div>
+    <h1>Check that this browser can find and call a tool</h1>
+    <p class="lede">One page, two tools, nothing else on it to get in the way of the answer.</p>
+  </div>
 
   <section class="chit mb-4">
     <div class="chit-head"><span class="chit-title">Status</span></div>
     <div class="chit-body">
-      <p id="statusLine" class="m-0 mb-3 font-display font-bold text-[15px]">checking…</p>
+      <p id="statusLine" class="m-0 mb-3 font-semibold text-[15px]">checking…</p>
       <pre id="log" class="readout">no calls yet</pre>
     </div>
   </section>

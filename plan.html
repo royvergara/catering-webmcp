@@ -12,15 +12,23 @@
 <div id="siteHeader"></div>
 
 <main class="mx-auto max-w-3xl px-5 py-8">
-  <h1 class="font-display font-extrabold tracking-tightest text-[clamp(1.8rem,6vw,2.6rem)] leading-tight mb-2">Planner</h1>
-  <p class="text-ink-soft text-[16px] mb-3 max-w-xl">
-    Describe the occasion once. This works out what to order and how much, then tells you what the order leaves you holding.
-  </p>
-  <p class="text-ink-mute text-[14px] mb-6 max-w-xl">
-    Three things worth trying: <strong class="text-ink-soft">edit the description and press Plan it</strong>,
-    <strong class="text-ink-soft">change a number under “What this rests on”</strong>, or
-    <strong class="text-ink-soft">switch the service level</strong>. Each one rebuilds the plan and reports only what moved.
-  </p>
+  <div class="sheethead">
+    <div class="sheethead-band">
+      <p class="kicker"><span class="kicker-no">02</span>Planner</p>
+      <p class="sheethead-meta">7 vendor sites &middot; 11 tools</p>
+    </div>
+    <h1>Plan a catering order across several vendors</h1>
+    <p class="lede">
+      Describe the occasion in plain words. It works out the quantities, composes an order, and
+      reports what that order does not cover — who is short, what nobody has claimed, and what
+      will not arrive in time.
+    </p>
+    <p class="lede-note">
+      Three things to try: <strong class="text-ink-soft">edit the description and press Plan it</strong>,
+      <strong class="text-ink-soft">change a number under “What this rests on”</strong>, or
+      <strong class="text-ink-soft">switch the service level</strong>. Each rebuilds the plan and reports only what moved.
+    </p>
+  </div>
 
   <!-- input -->
   <section class="chit mb-4">
@@ -224,7 +232,7 @@ function render(plan) {
             <span class="font-mono text-[11px] uppercase tracking-[.1em] text-ink-mute">${f.check}</span>
           </div>
           <p class="m-0 text-[15px]">${esc(f.message)}</p>
-          <button data-c="${f.check}" data-i="${idx}" class="btn btn-quiet neg mt-2">What can be done</button>
+          <button data-c="${f.check}" data-i="${idx}" class="btn btn-quiet js-negotiate mt-2">What can be done</button>
           <div id="opt-${idx}"></div>
         </div>`).join('')
     : `<p class="m-0 text-[15px] text-covered">Nothing outstanding. Everyone is covered and every job has an owner.</p>`;
@@ -242,7 +250,7 @@ function render(plan) {
       <span class="row-num ${r.who === 'You' ? 'font-semibold' : 'text-ink-mute'}">${esc(r.who)}</span>
     </div>`).join('');
 
-  els.findings.querySelectorAll('.neg').forEach(b => {
+  els.findings.querySelectorAll('.js-negotiate').forEach(b => {
     b.onclick = () => negotiate(b.dataset.c, b.dataset.i);
   });
 }
@@ -335,10 +343,15 @@ function renderAssumptions(plan) {
                 step="${a.unit === 'share' ? '0.05' : '1'}">`;
     return `
       <div class="py-2.5 ${idx ? 'border-t border-rule' : ''}">
-        <div class="flex flex-wrap items-baseline gap-2">
-          <span class="text-[14px]">${esc(a.label)}</span>
-          ${a.confirmed ? badge('ok', 'confirmed by you') : badge('risk', a.source)}
-          <span class="ml-auto flex items-baseline gap-2">
+        <!-- two columns, always: a long label wraps inside its own column rather
+             than shoving the control onto a line of its own, which left the rows
+             ragged and broke the eye-line between a name and its value -->
+        <div class="flex items-baseline gap-3">
+          <span class="min-w-0 flex flex-wrap items-baseline gap-2">
+            <span class="text-[14px]">${esc(a.label)}</span>
+            ${a.confirmed ? badge('ok', 'confirmed by you') : badge('risk', a.source)}
+          </span>
+          <span class="ml-auto shrink-0 flex items-baseline gap-2">
             ${control}
             <span class="font-mono text-[11px] text-ink-mute w-14">${a.unit}</span>
           </span>
