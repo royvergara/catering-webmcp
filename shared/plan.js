@@ -12,16 +12,39 @@ export function parseOccasion(text) {
   // people write "six vegetarians", not "6 vegetarians"
   for (const [w, n] of Object.entries(WORDS)) t = t.replace(new RegExp(`\\b${w}\\b`, 'g'), String(n));
 
-  const num = re => { const m = t.match(re); return m ? Number(m[1]) : undefined; };
+  const num = re => { const m = t.match(re); return m ? Number(m[1].replace(/,/g, '')) : undefined; };
 
   const dietary = {};
   const veg = num(/(\d+)\s*veg(etarian)?/); if (veg) dietary.vegetarian = veg;
   const gf = num(/(\d+)\s*(gluten[\s-]?free|gf)/); if (gf) dietary.gluten_free = gf;
   const vegan = num(/(\d+)\s*vegan/); if (vegan) dietary.vegan = vegan;
 
+  // How many people, written the several ways people actually write it.
+  const headcount =
+    num(/(\d+)\s*(?:people|guests|pax|heads|persons?|attendees|of us)/) ??
+    num(/\b(?:party|group|dinner|lunch|table|catering)\s+(?:of|for)\s+(\d+)/) ??
+    num(/\bfor\s+(\d+)\b(?!\s*(?:pm|am|o'clock))/) ??
+    num(/^(\d+)\b/);
+
+  // Only a figure actually marked as money, or named as a budget. Matching any
+  // three-digit number read "100 people" as a $100 budget.
+  const budget =
+    num(/\$\s?(\d[\d,]*)/) ??
+    num(/\b(?:budget|spend|under|around|about|up to|max(?:imum)?)\D{0,12}(\d[\d,]{1,6})\b/);
+
+  // What was actually read, as opposed to what was assumed in its absence. The
+  // planner surfaces the difference rather than presenting a default as a fact.
+  const found = {
+    headcount: headcount !== undefined,
+    budget: budget !== undefined,
+    dietary: Object.keys(dietary).length > 0,
+    serveAt: false   // no date parsing yet; the demo time is a fixture, and says so
+  };
+
   return {
-    headcount: num(/(\d+)\s*(people|guests|pax|heads)/) || num(/^(\d+)\b/) || 40,
-    budget: num(/\$?\s?(\d{3,5})/) || 600,
+    found,
+    headcount: headcount ?? 40,
+    budget: budget ?? 600,
     serveAt: '2026-09-12T18:00:00-05:00',
     format: 'buffet',
     durationHours: 3,

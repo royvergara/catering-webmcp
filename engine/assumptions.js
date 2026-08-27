@@ -52,10 +52,22 @@ const record = (id, label, value, o = {}) => ({
 // Read the current plan back out as a list of editable assumptions.
 export function deriveAssumptions(occasion, basket = { items: [] }) {
   const d = ASSUMPTION_DEFAULTS;
+  // A value the parser did not actually find is a default wearing a parsed value's
+  // clothes. Say which it is, so the person can see what was never really stated.
+  const read = field => occasion.found?.[field] !== false;
+  const from = (field, stated, assumed) => ({
+    source: read(field) ? 'parsed' : 'default',
+    basis: read(field) ? stated : assumed
+  });
+
   const out = [
     record('occasion.headcount', 'Headcount', occasion.headcount, {
-      unit: 'guests', field: 'headcount', source: 'parsed',
-      basis: 'read from your description'
+      unit: 'guests', field: 'headcount',
+      ...from('headcount', 'read from your description', 'nobody said how many people; assumed')
+    }),
+    record('occasion.budget', 'Budget', occasion.budget, {
+      unit: '$', field: 'budget',
+      ...from('budget', 'read from your description', 'no budget stated; assumed')
     }),
     record('occasion.proteinOzPerPerson', 'Main per person', occasion.proteinOzPerPerson ?? d.proteinOzPerPerson, {
       unit: 'oz', field: 'proteinOzPerPerson', source: 'default',
