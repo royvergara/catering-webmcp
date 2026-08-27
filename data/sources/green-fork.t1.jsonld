@@ -1,0 +1,40 @@
+{
+  "@context": "https://schema.org",
+  "@type": "Restaurant",
+  "name": "Green Fork Kitchen",
+  "url": "https://example.invalid/green-fork",
+  "servesCuisine": "Seasonal American",
+  "hasMenu": {
+    "@type": "Menu",
+    "name": "Catering trays",
+    "hasMenuSection": [
+      {
+        "@type": "MenuSection",
+        "name": "Trays",
+        "hasMenuItem": [
+          {
+            "@type": "MenuItem",
+            "name": "Herb chicken tray",
+            "description": "Roasted herb chicken, served warm in a full tray.",
+            "suitableForDiet": "https://schema.org/GlutenFreeDiet",
+            "offers": { "@type": "Offer", "price": "168.00", "priceCurrency": "USD" }
+          },
+          {
+            "@type": "MenuItem",
+            "name": "Roasted vegetable tray",
+            "description": "Seasonal roasted vegetables.",
+            "suitableForDiet": ["https://schema.org/VegetarianDiet", "https://schema.org/GlutenFreeDiet"],
+            "offers": { "@type": "Offer", "price": "78.00", "priceCurrency": "USD" }
+          },
+          {
+            "@type": "MenuItem",
+            "name": "Chopped salad",
+            "description": "Little gem, radish, herbs, lemon.",
+            "suitableForDiet": ["https://schema.org/VegetarianDiet", "https://schema.org/GlutenFreeDiet"],
+            "offers": { "@type": "Offer", "price": "62.00", "priceCurrency": "USD" }
+          }
+        ]
+      }
+    ]
+  }
+}

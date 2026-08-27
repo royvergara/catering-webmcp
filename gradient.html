@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Source gradient · Catering WebMCP</title>
+<link rel="stylesheet" href="/shared/fonts.css">
+<link rel="stylesheet" href="/shared/tailwind.css">
+<link rel="stylesheet" href="/shared/ui.css">
+</head>
+<body class="font-sans">
+<div id="siteHeader"></div>
+
+<main class="mx-auto max-w-3xl px-5 py-8">
+  <h1 class="font-display font-extrabold tracking-tightest text-[clamp(1.8rem,6vw,2.6rem)] leading-tight mb-2">The source gradient</h1>
+  <p class="text-ink-soft text-[16px] mb-6 max-w-xl">
+    Almost no real caterer has WebMCP tools today. A thing that only works once they do is a
+    thing for a world that does not exist. So here is one business, published four different
+    ways, asked the same question — and what is lost at every step down.
+  </p>
+
+  <section class="chit mb-4">
+    <div class="chit-head"><span class="chit-title">Ask every tier at once</span><span class="chit-note" id="statusLine">loading…</span></div>
+    <div class="chit-body">
+      <label for="q" class="font-mono text-[11px] uppercase tracking-[.12em] text-ink-mute">The question</label>
+      <select id="q" class="field w-auto text-[14px] py-1.5 ml-2"></select>
+      <pre id="err" class="readout mt-3" hidden></pre>
+      <div id="answers" class="mt-4"></div>
+    </div>
+  </section>
+
+  <section class="chit mb-4" id="readCard" hidden>
+    <div class="chit-head"><span class="chit-title">What each tier actually read</span><span class="chit-note" id="readNote"></span></div>
+    <div class="chit-body"><div id="readings"></div></div>
+  </section>
+
+  <section class="chit mb-4" id="inqCard" hidden>
+    <div class="chit-head"><span class="chit-title">T4 — nothing published</span><span class="chit-note">a real path, not a dead end</span></div>
+    <div class="chit-body">
+      <p class="m-0 mb-3 text-[14px] text-ink-soft">
+        No tools, no markup, no document. The agent composes the enquiry, a person sends it, and
+        the reply comes back into the same record shape as everything above. Slow, but the plan completes.
+      </p>
+      <pre id="inquiry" class="readout"></pre>
+    </div>
+  </section>
+
+  <section class="chit perf mb-8" id="matrixCard" hidden>
+    <div class="chit-head"><span class="chit-title">What becomes possible at all</span><span class="chit-note">the argument</span></div>
+    <div class="chit-body">
+      <div class="overflow-x-auto"><table class="w-full font-mono text-[12px]" id="matrix"></table></div>
+      <p class="m-0 mt-4 text-[15px] font-sans">
+        Two rows carry it. <strong>Requirements exist at no tier below T0</strong> — no published
+        format anywhere describes what a vendor needs <em>from you</em>, so below T0 the agent has
+        to infer obligations and label them assumed. And <strong>nothing below T0 can act</strong>:
+        reading a menu is solved four different ways, holding a date and negotiating a fix are
+        possible in exactly one.
+      </p>
+    </div>
+  </section>
+
+  <section class="chit">
+    <div class="chit-head"><span class="chit-title">Agent tool calls</span><span class="chit-note">live</span></div>
+    <div class="chit-body"><pre id="log" class="readout">no calls yet</pre></div>
+  </section>
+</main>
+
+<script>
+window.addEventListener('error', e => {
+  const el = document.getElementById('err');
+  el.hidden = false; el.textContent = 'Error: ' + (e.error && e.error.stack || e.message);
+});
+window.addEventListener('unhandledrejection', e => {
+  const el = document.getElementById('err');
+  el.hidden = false; el.textContent = 'Error: ' + (e.reason && e.reason.stack || e.reason);
+});
+</script>
+
+<script type="module">
+import {
+  TIERS, CAPABILITIES, can, readT0, readT1, readT2, readT3, draftInquiry, askEveryTier
+} from '/engine/adapters.js';
+import { mountHeader, badge, tierBadge, money, esc } from '/shared/ui.js';
+
+mountHeader('Source gradient');
+
+// never rely on implicit id globals: `status`, `name`, `length` are window built-ins
+const $ = id => document.getElementById(id);
+const els = {
+  q: $('q'), statusLine: $('statusLine'), err: $('err'), answers: $('answers'),
+  readCard: $('readCard'), readings: $('readings'), readNote: $('readNote'),
+  inqCard: $('inqCard'), inquiry: $('inquiry'),
+  matrixCard: $('matrixCard'), matrix: $('matrix'), log: $('log')
+};
+
+const NEED = {
+  headcount: 40,
+  serveAt: '2026-09-12T18:00:00-05:00',
+  dietary: { vegetarian: 6, gluten_free: 2 }
+};
+
+let readings = {};
+let inquiry = null;
+const calls = [];
+
+function log(tool, input, output) {
+  calls.unshift({ at: new Date().toISOString(), tool, input, output });
+  els.log.textContent = JSON.stringify(calls, null, 2).slice(0, 4000);
+}
+
+const verdictBadge = v =>
+  v === 'yes' ? badge('ok', 'yes')
+  : v === 'no' ? badge('blocker', 'no')
+  : badge('risk', v);
+
+function renderAnswers(question) {
+  const rows = askEveryTier(question, readings);
+  els.answers.innerHTML = rows.map(r => `
+    <div class="py-3 border-t border-rule">
+      <div class="flex flex-wrap items-baseline gap-2 mb-1">
+        ${tierBadge(r.tier)}
+        <span class="font-semibold text-[15px]">${esc(r.label)}</span>
+        ${verdictBadge(r.verdict)}
+        <span class="ml-auto font-mono text-[11px] text-ink-mute">${esc(r.roundTrip)}</span>
+      </div>
+      <p class="m-0 text-[14px] text-ink-mute">${esc(r.how)}</p>
+      <p class="m-0 mt-1 text-[14px]">${esc(answerText(r, question))}</p>
+    </div>`).join('');
+}
+
+function answerText(row, question) {
+  const recs = readings[row.tier] || [];
+  if (row.needsHuman) return 'Nobody has published this. The agent drafts the question below and waits days for a person to answer it.';
+  if (!row.answered) return 'Cannot be answered from this source at all.';
+
+  const first = recs[0];
+  switch (question) {
+    case 'menu':
+      return `${recs.length} items, priced: ${recs.map(r => `${r.item} ${money(r.price)}`).join(', ')}.`;
+    case 'servings':
+      return recs.every(r => r.serves === null)
+        ? 'Not published here — every quantity below rests on a guess.'
+        : recs.map(r => `${r.item}: ${r.serves_range ? `${r.serves_range[0]}-${r.serves_range[1]}, taken as ${r.serves}` : r.serves}`).join('; ') + '.';
+    case 'dietary': {
+      const tagged = recs.filter(r => r.dietary.length);
+      return `${tagged.length} of ${recs.length} items carry a tag${first?.dietary_inferred ? ', all of them guessed from the name' : ''}: `
+        + (tagged.map(r => `${r.item} (${r.dietary.join(', ')})`).join('; ') || 'none') + '.';
+    }
+    default:
+      return `Answered from ${TIERS[row.tier].label.toLowerCase()}.`;
+  }
+}
+
+function renderReadings() {
+  const all = Object.entries(readings).filter(([, r]) => r.length);
+  els.readNote.textContent = `${all.reduce((n, [, r]) => n + r.length, 0)} records, one shape`;
+  els.readings.innerHTML = all.map(([tier, recs]) => `
+    <div class="py-3 border-t border-rule">
+      <div class="flex flex-wrap items-baseline gap-2 mb-2">
+        ${tierBadge(tier)}
+        <span class="font-semibold text-[14px]">${esc(TIERS[tier].label)}</span>
+        <span class="font-mono text-[11px] text-ink-mute">confidence ${recs[0].source.confidence}</span>
+        ${recs.some(r => r.flagged) ? badge('risk', 'confirm before use') : ''}
+      </div>
+      ${recs.map(r => `
+        <div class="row">
+          <span class="row-name">${esc(r.item)}
+            <span class="text-ink-mute">serves ${r.serves ?? '—'}${
+              r.serves_range ? ` (stated ${r.serves_range[0]}-${r.serves_range[1]})` : ''}</span>
+            ${r.dietary.length ? `<span class="badge badge-tier">${esc(r.dietary.join(' '))}</span>` : ''}
+            ${r.dietary_inferred && r.dietary.length ? badge('risk', 'guessed') : ''}
+          </span>
+          <span class="row-num">${r.price === null ? '—' : money(r.price)}</span>
+        </div>
+        ${r.assumed.length ? `<p class="m-0 mb-2 text-[12px] text-ink-mute">assumed: ${esc(r.assumed.join('; '))} · ${esc(r.source.evidence)}</p>` : ''}
+      `).join('')}
+    </div>`).join('');
+}
+
+function renderMatrix() {
+  const tiers = ['T0', 'T1', 'T2', 'T3', 'T4'];
+  els.matrix.innerHTML =
+    `<thead><tr>
+       <th class="text-left py-1 pr-3 font-semibold">Capability</th>
+       ${tiers.map(t => `<th class="text-left py-1 px-2 font-semibold">${t}</th>`).join('')}
+     </tr></thead>
+     <tbody>${CAPABILITIES.map(row => `
+       <tr class="border-t border-rule">
+         <td class="py-1.5 pr-3">${esc(row.label)}</td>
+         ${tiers.map(t => {
+           const v = row[t];
+           const tone = v === 'yes' ? 'text-covered font-semibold'
+             : v === 'no' ? 'text-short'
+             : 'text-watch';
+           return `<td class="py-1.5 px-2 ${tone}">${esc(v)}</td>`;
+         }).join('')}
+       </tr>`).join('')}</tbody>`;
+}
+
+function ask(question) {
+  log('compare_tiers', { question }, askEveryTier(question, readings).map(r => ({ tier: r.tier, verdict: r.verdict })));
+  renderAnswers(question);
+}
+
+// ---------- load ----------
+const now = new Date().toISOString();
+try {
+  const [vendor, t1, t2, t3] = await Promise.all([
+    fetch('/data/vendors/green-fork.json').then(r => r.json()),
+    fetch('/data/sources/green-fork.t1.jsonld').then(r => r.text()),
+    fetch('/data/sources/green-fork.t2.html').then(r => r.text()),
+    fetch('/data/sources/green-fork.t3.txt').then(r => r.text())
+  ]);
+
+  readings = {
+    T0: readT0(vendor, now),
+    T1: readT1(t1, '/data/sources/green-fork.t1.jsonld', now),
+    T2: readT2(t2, '/data/sources/green-fork.t2.html', now),
+    T3: readT3(t3, '/data/sources/green-fork.t3.txt', now),
+    T4: []
+  };
+  inquiry = draftInquiry(NEED, { name: vendor.name });
+
+  els.q.innerHTML = CAPABILITIES.filter(c => c.id !== 'roundtrip')
+    .map(c => `<option value="${c.id}">${c.label}</option>`).join('');
+  els.q.value = 'requirements';
+
+  for (const c of ['readCard', 'inqCard', 'matrixCard']) { els[c].hidden = false; els[c].classList.add('rise'); }
+  els.inquiry.textContent = inquiry.body;
+  renderReadings();
+  renderMatrix();
+  ask(els.q.value);
+  els.statusLine.textContent = `${Object.values(readings).filter(r => r.length).length} tiers read, 1 with nothing published`;
+  els.q.addEventListener('change', () => ask(els.q.value));
+} catch (e) {
+  els.err.hidden = false;
+  els.err.textContent = 'Could not load the sources: ' + e.message;
+  els.statusLine.textContent = 'sources failed to load';
+}
+
+if (Object.keys(readings).length && document.modelContext?.registerTool) {
+  const reg = (name, description, inputSchema, fn) =>
+    document.modelContext.registerTool({ name, description, inputSchema,
+      execute: async (input) => {
+        const out = fn(input || {});
+        log(name, input, out);
+        return { content: [{ type: 'text', text: JSON.stringify(out) }] };
+      }});
+
+  reg('read_source', 'Read one business at one source tier and return the normalized records, each with its tier, url, timestamp, confidence and the evidence it was read from.',
+    { type:'object', properties:{ tier:{type:'string', enum:['T0','T1','T2','T3']} }, required:['tier'] },
+    ({ tier }) => ({ tier, label: TIERS[tier]?.label, records: readings[tier] || [] }));
+
+  reg('compare_tiers', 'Ask the same question of every source tier at once and report which of them can answer it, how, and how long the round trip takes.',
+    { type:'object', properties:{ question:{type:'string', enum: CAPABILITIES.map(c => c.id) } }, required:['question'] },
+    ({ question }) => {
+      if (CAPABILITIES.some(c => c.id === question)) { els.q.value = question; renderAnswers(question); }
+      return { question, tiers: askEveryTier(question, readings) };
+    });
+
+  reg('capability_matrix', 'What each source tier makes possible at all, not merely how much effort it takes. Requirements exist at no tier below T0, and nothing below T0 can act.',
+    { type:'object', properties:{} },
+    () => ({ capabilities: CAPABILITIES,
+             requirements_below_t0: ['T1','T2','T3'].map(t => ({ tier: t, requirements: can(t, 'requirements') })),
+             can_act: ['T0','T1','T2','T3','T4'].filter(t => can(t, 'hold') === 'yes') }));
+
+  reg('draft_inquiry', 'For a business that publishes nothing, compose the enquiry a person can send, including the question about what they need from you that no format publishes.',
+    { type:'object', properties:{ headcount:{type:'number'} } },
+    ({ headcount }) => draftInquiry({ ...NEED, headcount: headcount || NEED.headcount }, { name: 'the business' }));
+}
+</script>
+</body>
+</html>

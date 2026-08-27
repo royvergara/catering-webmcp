@@ -6,7 +6,7 @@ Deploy the folder as-is to Netlify, Vercel, or Cloudflare Pages.
 ## Run locally
 ```
 npm run dev     # http://localhost:8080
-npm test        # engine unit tests (93, all passing)
+npm test        # engine unit tests (113, all passing)
 ```
 
 ## What exists now
@@ -19,7 +19,9 @@ npm test        # engine unit tests (93, all passing)
 | `engine/replan.js` | done — change an input, report only what broke |
 | `engine/trust.js` | done — field allowlist + injection quarantine |
 | `engine/options.js` | done — two or three orders, ranked and described by tradeoff |
-| `engine/*.test.mjs` | done — 93 tests passing |
+| `engine/adapters.js` | done — T0-T4 readers, one record shape, capability matrix |
+| `gradient.html` | done — the same question at four tiers, side by side |
+| `engine/*.test.mjs` | done — 113 tests passing |
 | `data/vendors/*.json` | 7 written, one of them deliberately hostile |
 | `vendor.html` | done — one template, driven by `?v=<slug>`, registers 5 tools |
 | `index.html` | done — hub |
@@ -103,7 +105,7 @@ Node import the same definitions, so almost everything is testable from the term
 
 **Three levels, cheapest first:**
 
-1. `npm test` — 93 tests. Engine checks, corrections, replanning and the trust boundary, plus
+1. `npm test` — 113 tests. Engine checks, corrections, replanning and the trust boundary, plus
    tool contracts: every tool has a snake_case name, a real description, an object schema,
    JSON-serialisable output, service-level-dependent requirements, blackout dates honoured,
    holds never binding. Run this on every change.

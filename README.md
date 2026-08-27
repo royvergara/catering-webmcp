@@ -27,7 +27,7 @@ That one addition turns separate purchases into a plan.
 ## Testing
 
 ```
-npm test          # 93 tests: engine checks, corrections, replanning, trust, tool contracts.
+npm test          # 113 tests: engine checks, corrections, replanning, trust, tool contracts.
                   # No browser needed.
 npm run dev       # serve at :8080
 ```
@@ -47,6 +47,7 @@ For the real thing, open in the ChatGPT in-app browser, or Chrome 149+ with
 - `/smoke.html` — verify tool discovery
 - `/` — vendor list; each vendor page registers its own tools
 - `/plan.html` — the planner
+- `/gradient.html` — one business published four ways, asked the same question
 
 Try: *"40 people, Saturday at 6, $600, six vegetarians, two gluten free, no kitchen at the venue."*
 
@@ -76,8 +77,12 @@ engine/engine.js    pure checks: quantity, coverage, unclaimed, timing, budget
 engine/assumptions.js  what the plan inferred; editable, and confirmed values stick
 engine/replan.js    change an input, report only what broke
 engine/trust.js     vendor text is data: field allowlist + injection quarantine
-engine/*.test.mjs   65 unit tests
+engine/options.js   two or three orders, ranked and described by tradeoff
+engine/adapters.js  read a business at T0-T4; what each tier can and cannot answer
+engine/*.test.mjs   113 unit tests
 data/vendors/       vendor definitions, one of them deliberately hostile
+data/sources/       the same business published as markup, a table and a PDF
+gradient.html       the source gradient, side by side
 ```
 
 MIT licensed.

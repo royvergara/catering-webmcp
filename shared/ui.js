@@ -2,6 +2,7 @@
 const NAV = [
   { href: '/', label: 'Overview' },
   { href: '/plan.html', label: 'Planner' },
+  { href: '/gradient.html', label: 'Source gradient' },
   { href: '/harness.html', label: 'Tool harness' },
   { href: '/smoke.html', label: 'Smoke test' }
 ];
