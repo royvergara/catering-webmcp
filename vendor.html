@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vendor · Catering WebMCP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/shared/theme.js"></script>
+<link rel="stylesheet" href="/shared/ui.css">
+</head>
+<body class="font-sans">
+<div id="siteHeader"></div>
+
+<main class="mx-auto max-w-3xl px-5 py-8">
+  <div class="flex items-center gap-2 mb-2">
+    <h1 id="name" class="font-display font-extrabold tracking-tightest text-[clamp(1.8rem,6vw,2.4rem)] leading-tight m-0">Loading…</h1>
+    <span id="tier"></span>
+  </div>
+  <p class="lede text-ink-soft text-[16px] mb-6 max-w-xl" id="blurb"></p>
+
+  <section class="chit mb-4">
+    <div class="chit-head"><span class="chit-title">Menu</span><span class="chit-note" id="menuNote"></span></div>
+    <div class="chit-body font-mono text-[13px]" id="menu"></div>
+  </section>
+
+  <section class="chit perf mb-8">
+    <div class="chit-head"><span class="chit-title">What we need from you</span><span class="chit-note">by service level</span></div>
+    <div class="chit-body">
+      <p class="text-[14px] text-ink-soft mt-0 mb-4">
+        Changes with the service level you pick. No vendor publishes this today.
+      </p>
+      <div id="reqs" class="space-y-4"></div>
+    </div>
+  </section>
+
+  <section class="chit">
+    <div class="chit-head"><span class="chit-title">Agent tool calls</span><span class="chit-note">live</span></div>
+    <div class="chit-body"><pre id="log" class="readout">no calls yet</pre></div>
+  </section>
+</main>
+
+<script type="module">
+import { buildVendorTools } from '/shared/vendor-tools.js';
+import { mountHeader, tierBadge, money, label, esc } from '/shared/ui.js';
+
+mountHeader('');
+const $ = id => document.getElementById(id);
+const slug = new URLSearchParams(location.search).get('v') || 'green-fork';
+const v = await (await fetch(`/data/vendors/${slug}.json`)).json();
+
+document.title = `${v.name} · Catering WebMCP`;
+$('name').textContent = v.name;
+$('blurb').textContent = v.blurb;
+$('tier').innerHTML = tierBadge(v.tier);
+$('menuNote').textContent = `${v.menu.length} items · ${v.lead_time_hours}h lead time`;
+
+$('menu').innerHTML = v.menu.map(i => `
+  <div class="row">
+    <span class="row-name">${esc(i.name)}
+      <span class="text-ink-mute">serves ${i.claimed_serves}</span>
+      ${i.basis_stated
+        ? '<span class="badge badge-ok">basis stated</span>'
+        : '<span class="badge badge-risk">basis not stated</span>'}
+      ${(i.dietary || []).map(d => `<span class="badge badge-tier">${esc(label(d))}</span>`).join('')}
+    </span>
+    <span class="row-num">${money(i.price)}</span>
+  </div>`).join('');
+
+$('reqs').innerHTML = Object.entries(v.requirements).map(([lvl, r]) => `
+  <div class="border-l-2 border-carbon pl-3">
+    <div class="font-mono text-[11px] uppercase tracking-[.12em] text-carbon mb-2">${esc(label(lvl))}</div>
+    <div class="text-[14px] mb-1">
+      <span class="text-ink-mute">they bring</span>
+      ${(r.provides || []).map(p => `<span class="badge badge-ok ml-1">${esc(label(p))}</span>`).join('') || '—'}
+    </div>
+    <div class="text-[14px]">
+      <span class="text-ink-mute">you supply</span>
+      ${(r.requires || []).map(q => `<span class="badge ml-1" style="background:var(--tape-soft);color:var(--watch);border-color:#EFDDB4">${esc(label(q))}</span>`).join('') || '—'}
+    </div>
+  </div>`).join('');
+
+const calls = [];
+const log = (n, i, o) => {
+  calls.unshift({ at: new Date().toISOString(), tool: n, input: i, output: o });
+  $('log').textContent = JSON.stringify(calls, null, 2);
+};
+
+if (document.modelContext?.registerTool) {
+  for (const t of buildVendorTools(v)) {
+    document.modelContext.registerTool({
+      name: t.name, description: t.description, inputSchema: t.inputSchema,
+      execute: async (input) => {
+        const out = t.run(input);
+        log(t.name, input, out);
+        return { content: [{ type: 'text', text: JSON.stringify(out) }] };
+      }
+    });
+  }
+} else {
+  $('log').textContent = 'WebMCP not available in this browser. Use /harness.html to fire the same tools by hand.';
+}
+</script>
+</body>
+</html>

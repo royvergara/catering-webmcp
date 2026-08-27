@@ -1,0 +1,23 @@
+{
+  "slug": "casa-vieja",
+  "name": "Casa Vieja",
+  "tier": "T3",
+  "kind": "caterer",
+  "blurb": "Family recipes, catering menu published as a PDF. Figures below are approximate and need confirming.",
+  "service_levels": ["pickup"],
+  "lead_time_hours": 48,
+  "blackout_dates": [],
+  "approximate": true,
+  "menu": [
+    { "id": "cv-enchiladas", "name": "Enchilada pan (approx.)", "category": "main",
+      "claimed_serves": 12, "basis_mains": 1, "basis_stated": false, "portion_oz": 6,
+      "price": 95, "dietary": [], "hot": true, "minimum": 1, "confidence": 0.5 },
+    { "id": "cv-veg", "name": "Calabacitas pan (approx.)", "category": "main",
+      "claimed_serves": 12, "basis_mains": 1, "basis_stated": false, "portion_oz": 6,
+      "price": 82, "dietary": ["vegetarian"], "hot": true, "minimum": 1, "confidence": 0.5 }
+  ],
+  "requirements": {
+    "pickup": { "requires": ["transport", "warming_trays", "fuel", "serving_utensils", "cleanup"], "provides": ["food"], "assumed": true }
+  },
+  "accommodations": []
+}

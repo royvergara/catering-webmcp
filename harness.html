@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tool harness · Catering WebMCP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/shared/theme.js"></script>
+<link rel="stylesheet" href="/shared/ui.css">
+</head>
+<body class="font-sans">
+<div id="siteHeader"></div>
+
+<main class="mx-auto max-w-3xl px-5 py-8">
+  <h1 class="font-display font-extrabold tracking-tightest text-[clamp(1.8rem,6vw,2.4rem)] leading-tight mb-2">Tool harness</h1>
+  <p class="text-ink-soft text-[16px] mb-6 max-w-xl">
+    Stands in for <code class="font-mono text-[14px] bg-paper-sunk px-1">document.modelContext</code> so every tool can be
+    fired by hand, in any browser. Covers everything except discovery.
+  </p>
+
+  <section class="chit mb-4">
+    <div class="chit-head"><span class="chit-title">Vendor</span><span class="chit-note" id="reg"></span></div>
+    <div class="chit-body">
+      <label for="pick" class="sr-only">Choose a vendor</label>
+      <select id="pick" class="field w-auto text-[14px] py-1.5 mb-3"></select>
+      <div id="tools" class="flex flex-wrap gap-2"></div>
+    </div>
+  </section>
+
+  <section class="chit">
+    <div class="chit-head"><span class="chit-title">Output</span></div>
+    <div class="chit-body"><pre id="out" class="readout">Pick a tool above.</pre></div>
+  </section>
+</main>
+
+<script type="module">
+import { buildVendorTools } from '/shared/vendor-tools.js';
+import { mountHeader } from '/shared/ui.js';
+
+mountHeader('Tool harness');
+const $ = id => document.getElementById(id);
+const registry = [];
+if (!document.modelContext) {
+  document.modelContext = { registerTool: t => registry.push(t) };
+  document.modelContext.__shimmed = true;
+}
+
+const slugs = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','prime-platters','loop-rentals','handoff-staffing'];
+$('pick').innerHTML = slugs.map(s => `<option>${s}</option>`).join('');
+
+async function load(slug) {
+  registry.length = 0;
+  const v = await (await fetch(`/data/vendors/${slug}.json`)).json();
+  for (const t of buildVendorTools(v)) {
+    document.modelContext.registerTool({
+      name: t.name, description: t.description, inputSchema: t.inputSchema,
+      execute: async input => ({ content: [{ type: 'text', text: JSON.stringify(t.run(input)) }] })
+    });
+  }
+  $('reg').textContent = `${registry.length} tools · ` +
+    (document.modelContext.__shimmed ? 'shimmed' : 'real WebMCP present');
+
+  const samples = {
+    check_availability: { date: '2026-09-12', headcount: 40 },
+    get_menu: { dietary: ['vegetarian'] },
+    get_requirements: { service_level: v.service_levels[0] },
+    propose_accommodation: { constraint: 'timing' },
+    hold: { date: '2026-09-12', items: [v.menu[0].id] }
+  };
+
+  $('tools').innerHTML = '';
+  for (const t of registry) {
+    const b = document.createElement('button');
+    b.className = 'btn btn-quiet font-mono';
+    b.textContent = t.name;
+    b.onclick = async () => {
+      const input = samples[t.name] || {};
+      const res = await t.execute(input);
+      $('out').textContent = JSON.stringify({ tool: t.name, input, output: JSON.parse(res.content[0].text) }, null, 2);
+    };
+    $('tools').appendChild(b);
+  }
+}
+$('pick').onchange = () => load($('pick').value);
+load(slugs[0]);
+</script>
+</body>
+</html>

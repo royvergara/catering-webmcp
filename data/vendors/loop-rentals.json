@@ -1,0 +1,38 @@
+{
+  "slug": "loop-rentals",
+  "name": "Loop Party Rentals",
+  "tier": "T0",
+  "kind": "rentals",
+  "blurb": "Chafers, fuel, serving utensils, plates and linens. Delivery or will-call.",
+  "service_levels": ["pickup", "delivery", "dropoff_setup"],
+  "lead_time_hours": 24,
+  "blackout_dates": [],
+  "menu": [
+    { "id": "lr-chafer", "name": "Chafer set with two fuel cans", "category": "equipment",
+      "claimed_serves": 1, "basis_mains": 1, "basis_stated": true, "portion_oz": 0,
+      "price": 22, "dietary": [], "hot": false, "minimum": 1,
+      "provides_resource": "warming_trays" },
+    { "id": "lr-fuel", "name": "Chafer fuel, four pack", "category": "equipment",
+      "claimed_serves": 1, "basis_mains": 1, "basis_stated": true, "portion_oz": 0,
+      "price": 14, "dietary": [], "hot": false, "minimum": 1,
+      "provides_resource": "fuel" },
+    { "id": "lr-serving", "name": "Serving utensil kit", "category": "equipment",
+      "claimed_serves": 1, "basis_mains": 1, "basis_stated": true, "portion_oz": 0,
+      "price": 12, "dietary": [], "hot": false, "minimum": 1,
+      "provides_resource": "serving_utensils" },
+    { "id": "lr-place", "name": "Plates, forks, napkins for 50", "category": "equipment",
+      "claimed_serves": 50, "basis_mains": 1, "basis_stated": true, "portion_oz": 0,
+      "price": 38, "dietary": [], "hot": false, "minimum": 1,
+      "provides_resource": "plates" }
+  ],
+  "requirements": {
+    "pickup":        { "requires": ["transport", "return_by_monday"], "provides": ["warming_trays", "fuel", "serving_utensils", "plates"] },
+    "delivery":      { "requires": ["someone_on_site_at_delivery", "return_by_monday"], "provides": ["warming_trays", "fuel", "serving_utensils", "plates", "transport"] },
+    "dropoff_setup": { "requires": ["return_by_monday"], "provides": ["warming_trays", "fuel", "serving_utensils", "plates", "transport", "setup"] }
+  },
+  "accommodations": [
+    { "for": "unclaimed", "resource": "warming_trays", "description": "Chafer set delivered by 5pm", "cost": 22, "conditions": "Return Monday" },
+    { "for": "unclaimed", "resource": "serving_utensils", "description": "Utensil kit added to any delivery", "cost": 12, "conditions": "None" },
+    { "for": "timing", "description": "Insulated carrier rental, holds four hours", "cost": 18, "conditions": "Return Monday" }
+  ]
+}

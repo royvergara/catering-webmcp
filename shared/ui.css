@@ -1,0 +1,115 @@
+/* Component layer. Utilities do layout; these carry identity. */
+:root{
+  --ink:#10131A; --ink-soft:#3A424F; --ink-mute:#6B7480;
+  --paper:#F2F4F7; --card:#fff; --sunk:#E7EAEF;
+  --rule:#D9DEE5; --rule-strong:#B9C1CC;
+  --carbon:#1F3FD4; --carbon-soft:#E8ECFC;
+  --tape:#FFD94A; --tape-soft:#FFF6D1;
+  --short:#B8271F; --short-soft:#FBE9E8;
+  --watch:#8A5B00; --watch-soft:#FBF0DA;
+  --covered:#0F6B4F; --covered-soft:#E2F2EC;
+}
+html{ -webkit-text-size-adjust:100%; }
+body{
+  background:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  /* faint prep-sheet grid, not decoration: it reads as a worksheet */
+  background-image:linear-gradient(rgba(185,193,204,.34) 1px,transparent 1px);
+  background-size:100% 34px; background-position:0 -1px;
+}
+@media (prefers-reduced-motion:no-preference){
+  .rise{ animation:rise .32s cubic-bezier(.2,.7,.3,1) both; }
+  @keyframes rise{ from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+}
+
+/* --- chit: the core surface. A ticket, not a rounded card. --- */
+.chit{
+  background:var(--card); border:1px solid var(--rule); border-radius:2px;
+  box-shadow:0 1px 0 var(--rule), 0 6px 18px -14px rgba(16,19,26,.4);
+}
+.chit-head{
+  display:flex; align-items:baseline; gap:.6rem;
+  padding:.65rem .9rem; border-bottom:1px solid var(--rule);
+  background:linear-gradient(180deg,#fff, #FAFBFC);
+}
+.chit-title{
+  font-family:Archivo,system-ui,sans-serif; font-weight:700;
+  font-size:.78rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft);
+}
+.chit-note{ font-family:"IBM Plex Mono",monospace; font-size:.7rem; color:var(--ink-mute); margin-left:auto; }
+.chit-body{ padding:.9rem; }
+
+/* --- perforated edge: used once, on the plan ticket --- */
+.perf{ position:relative; }
+.perf::after{
+  content:""; position:absolute; left:0; right:0; bottom:-9px; height:9px;
+  background:radial-gradient(circle at 6px 0, transparent 5px, var(--card) 5px) repeat-x;
+  background-size:12px 9px;
+  filter:drop-shadow(0 1px 0 var(--rule));
+}
+
+/* --- rows --- */
+.row{ display:flex; gap:.75rem; align-items:baseline; padding:.5rem 0; border-bottom:1px dotted var(--rule); }
+.row:last-child{ border-bottom:0; }
+.row-name{ flex:1; min-width:0; }
+.row-num{ font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap; }
+
+/* --- the signature: jobs that land on the host get tape --- */
+.tape{
+  background:var(--tape); box-shadow:-.35rem 0 0 var(--tape), .35rem 0 0 var(--tape);
+  font-weight:600;
+}
+
+/* --- badges --- */
+.badge{
+  display:inline-flex; align-items:center; gap:.3rem;
+  font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase;
+  padding:.12rem .4rem; border-radius:2px; border:1px solid transparent; white-space:nowrap;
+}
+.badge-blocker{ background:var(--short-soft); color:var(--short); border-color:#F0CFCC; }
+.badge-risk{ background:var(--watch-soft); color:var(--watch); border-color:#EFDDB4; }
+.badge-ok{ background:var(--covered-soft); color:var(--covered); border-color:#C6E3D8; }
+.badge-tier{ background:var(--sunk); color:var(--ink-mute); border-color:var(--rule); }
+.badge-tier.T0{ background:var(--carbon-soft); color:var(--carbon); border-color:#CBD5F7; }
+
+/* --- controls --- */
+.field{
+  width:100%; background:#fff; border:1px solid var(--rule-strong); border-radius:2px;
+  padding:.6rem .7rem; font:inherit; color:var(--ink);
+}
+.field:focus{ outline:2px solid var(--carbon); outline-offset:1px; border-color:var(--carbon); }
+.btn{
+  display:inline-flex; align-items:center; gap:.4rem; cursor:pointer;
+  font-family:Archivo,system-ui,sans-serif; font-weight:700; letter-spacing:.02em;
+  padding:.6rem 1rem; border-radius:2px; border:1px solid var(--ink);
+  background:var(--ink); color:#fff;
+}
+.btn:hover{ background:#000; }
+.btn:focus-visible{ outline:2px solid var(--carbon); outline-offset:2px; }
+.btn-quiet{ background:#fff; color:var(--ink); border-color:var(--rule-strong); font-weight:600; padding:.3rem .55rem; font-size:.8rem; }
+.btn-quiet:hover{ background:var(--sunk); }
+
+/* --- data readout --- */
+.readout{
+  background:#0C0F15; color:#D8DEE9; border-radius:2px; padding:.75rem;
+  font-family:"IBM Plex Mono",monospace; font-size:.72rem; line-height:1.55;
+  overflow:auto; max-height:22rem; white-space:pre-wrap; word-break:break-word; margin:0;
+}
+.rule-strike{ text-decoration:line-through; text-decoration-color:var(--short); text-decoration-thickness:2px; }
+a{ color:var(--carbon); }
+
+/* header */
+#navToggle{ color:var(--ink); background:transparent; border:0; cursor:pointer; }
+#navToggle:focus-visible{ outline:2px solid var(--carbon); outline-offset:2px; }
+#navBar1,#navBar2,#navBar3{ transition:d .18s ease, opacity .18s ease; }
+@media (prefers-reduced-motion:reduce){ #navBar1,#navBar2,#navBar3{ transition:none; } }
+#navPanel a:last-child{ border-bottom:0; }
+
+/* small screens: keep rows readable when badges wrap */
+@media (max-width:480px){
+  .row{ flex-wrap:wrap; }
+  .row-num{ margin-left:auto; }
+  .badge{ margin-left:0; margin-right:.35rem; }
+  .chit-body{ padding:.75rem; }
+}
+.sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
