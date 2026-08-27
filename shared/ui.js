@@ -9,11 +9,10 @@ const NAV = [
 
 const link = (n, active, mobile) => {
   const on = n.label === active;
+  const cur = on ? ' aria-current="page"' : '';
   return mobile
-    ? `<a href="${n.href}" class="block py-2.5 px-1 no-underline border-b border-rule ${
-        on ? 'text-ink font-semibold' : 'text-ink-soft'}">${n.label}${on ? ' <span class="text-carbon">·</span>' : ''}</a>`
-    : `<a href="${n.href}" class="no-underline whitespace-nowrap ${
-        on ? 'text-ink font-semibold border-b-2 border-carbon pb-0.5' : 'text-ink-mute hover:text-ink'}">${n.label}</a>`;
+    ? `<a href="${n.href}"${cur}>${n.label}</a>`
+    : `<a href="${n.href}" class="navlink"${cur}>${n.label}</a>`;
 };
 
 export function mountHeader(active) {
@@ -26,45 +25,46 @@ export function mountHeader(active) {
   const el = document.getElementById('siteHeader');
   if (!el) return;
 
+  // The mark is set the way the pages set everything else: the name in the display
+  // face, the protocol stamped in mono. On a phone the nav collapses, so the space
+  // it leaves carries the name of the sheet you are on rather than going blank.
   el.innerHTML = `
-    <header class="border-b border-rule bg-paper-card sticky top-0 z-20">
-      <div class="mx-auto max-w-3xl px-5 h-14 flex items-center gap-4">
-        <a href="/" class="font-display font-extrabold tracking-tightest text-[15px] text-ink no-underline">
-          CATERING<span class="text-carbon">·</span>WEBMCP
+    <header class="masthead" id="masthead">
+      <div class="masthead-inner">
+        <a href="/" class="mark" aria-label="Catering WebMCP, home">
+          <span class="mark-name">CATERING</span><span class="mark-dot">·</span><span class="mark-code">WEBMCP</span>
         </a>
 
-        <nav class="ml-auto hidden sm:flex gap-4 text-[13px]">
+        <nav class="ml-auto hidden sm:flex gap-4" aria-label="Sections">
           ${NAV.map(n => link(n, active, false)).join('')}
         </nav>
 
-        <button id="navToggle" class="ml-auto sm:hidden -mr-2 p-2 rounded-chit"
-                aria-label="Open menu" aria-expanded="false" aria-controls="navPanel">
-          <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
-            <g stroke="currentColor" stroke-width="1.75" stroke-linecap="round">
-              <path id="navBar1" d="M3 6.5h16"/><path id="navBar2" d="M3 11h16"/><path id="navBar3" d="M3 15.5h16"/>
-            </g>
-          </svg>
-        </button>
+        <span class="masthead-where sm:hidden">${esc(active || '')}</span>
+        <button id="navToggle" class="menu-btn sm:hidden" aria-expanded="false" aria-controls="navPanel">Menu</button>
       </div>
 
-      <div id="navPanel" class="sm:hidden border-t border-rule bg-paper-card px-5 pb-2" hidden>
-        <nav class="text-[15px]">${NAV.map(n => link(n, active, true)).join('')}</nav>
+      <div id="navPanel" class="navpanel sm:hidden" hidden>
+        <nav aria-label="Sections">${NAV.map(n => link(n, active, true)).join('')}</nav>
       </div>
     </header>`;
 
+  const bar = document.getElementById('masthead');
   const btn = document.getElementById('navToggle');
   const panel = document.getElementById('navPanel');
+
   const set = open => {
     panel.hidden = !open;
     btn.setAttribute('aria-expanded', String(open));
-    btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
-    document.getElementById('navBar1').setAttribute('d', open ? 'M5 5l12 12' : 'M3 6.5h16');
-    document.getElementById('navBar2').style.opacity = open ? '0' : '1';
-    document.getElementById('navBar3').setAttribute('d', open ? 'M17 5L5 17' : 'M3 15.5h16');
+    btn.textContent = open ? 'Close' : 'Menu';
   };
   btn.addEventListener('click', () => set(panel.hidden));
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden) { set(false); btn.focus(); } });
   window.addEventListener('resize', () => { if (window.innerWidth >= 640 && !panel.hidden) set(false); });
+
+  // Sit flush on the sheet until there is something underneath to lift off.
+  const lift = () => bar.classList.toggle('lifted', window.scrollY > 4);
+  lift();
+  window.addEventListener('scroll', lift, { passive: true });
 }
 
 export const badge = (kind, text) => `<span class="badge badge-${kind}">${text}</span>`;

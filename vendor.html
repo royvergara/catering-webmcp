@@ -43,7 +43,7 @@
 import { buildVendorTools } from '/shared/vendor-tools.js';
 import { mountHeader, tierBadge, money, label, esc } from '/shared/ui.js';
 
-mountHeader('');
+mountHeader('Vendor site');
 const $ = id => document.getElementById(id);
 const slug = new URLSearchParams(location.search).get('v') || 'green-fork';
 const v = await (await fetch(`/data/vendors/${slug}.json`)).json();

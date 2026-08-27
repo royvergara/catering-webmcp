@@ -98,13 +98,6 @@ body{
 .rule-strike{ text-decoration:line-through; text-decoration-color:var(--short); text-decoration-thickness:2px; }
 a{ color:var(--carbon); }
 
-/* header */
-#navToggle{ color:var(--ink); background:transparent; border:0; cursor:pointer; }
-#navToggle:focus-visible{ outline:2px solid var(--carbon); outline-offset:2px; }
-#navBar1,#navBar2,#navBar3{ transition:d .18s ease, opacity .18s ease; }
-@media (prefers-reduced-motion:reduce){ #navBar1,#navBar2,#navBar3{ transition:none; } }
-#navPanel a:last-child{ border-bottom:0; }
-
 /* small screens: keep rows readable when badges wrap */
 @media (max-width:480px){
   .row{ flex-wrap:wrap; }
@@ -127,3 +120,76 @@ a{ color:var(--carbon); }
 /* The plan on screen no longer matches the text in the box. */
 .chit.stale{ opacity:.55; }
 .chit.stale .chit-note{ color:var(--short); }
+
+/* --- masthead: the top of the docket, not a website navbar --------------------
+   The rest of the page is a worksheet: ruled paper, tickets, mono for anything
+   measured. The header should read the same way — a carbon rule struck across
+   the top of the sheet, the mark set as a filing code, and separation that only
+   appears once there is something underneath it. */
+/* The pages mount the header into a wrapper div. A sticky element is confined to
+   its own containing block, so the wrapper would let the bar scroll away the moment
+   its box left the viewport: take the wrapper out of the box tree so `sticky` is
+   measured against the page. */
+#siteHeader{ display:contents; }
+.masthead{
+  position:sticky; top:0; z-index:20;
+  background:var(--card);
+  border-top:2px solid var(--carbon);
+  border-bottom:1px solid var(--rule);
+  transition:box-shadow .18s ease;
+}
+@media (prefers-reduced-motion:reduce){ .masthead{ transition:none; } }
+.masthead.lifted{ box-shadow:0 1px 0 var(--rule), 0 10px 20px -18px rgba(16,19,26,.5); }
+.masthead-inner{
+  display:flex; align-items:center; gap:1rem;
+  max-width:48rem; margin:0 auto; padding:0 1.25rem; height:3.25rem;
+}
+
+/* The mark pairs the display face with the mono one, the way the pages do:
+   the name is set, the protocol is stamped. */
+.mark{ display:inline-flex; align-items:baseline; gap:.12rem; text-decoration:none; white-space:nowrap; }
+.mark-name{
+  font-family:Archivo,system-ui,sans-serif; font-weight:800;
+  font-size:.9rem; letter-spacing:-.02em; color:var(--ink);
+}
+.mark-dot{ color:var(--carbon); font-weight:800; }
+.mark-code{
+  font-family:"IBM Plex Mono",monospace; font-size:.72rem; font-weight:500;
+  letter-spacing:.14em; color:var(--ink-soft); transform:translateY(-1px);
+}
+.mark:hover .mark-code{ color:var(--carbon); }
+
+/* Where you are, stamped in mono. Fills the gap the nav leaves on a phone. */
+.masthead-where{
+  margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:.66rem;
+  letter-spacing:.14em; text-transform:uppercase; color:var(--ink-mute);
+  /* a long name wraps on a narrow phone; set it flush right and tight so the
+     two lines read as one stamp rather than as a broken line */
+  text-align:right; line-height:1.25;
+}
+
+.navlink{
+  font-size:.82rem; color:var(--ink-mute); text-decoration:none;
+  padding-bottom:.15rem; border-bottom:2px solid transparent;
+}
+.navlink:hover{ color:var(--ink); }
+.navlink[aria-current="page"]{ color:var(--ink); font-weight:600; border-bottom-color:var(--carbon); }
+
+/* A word, not a hamburger: the system speaks in labels everywhere else. */
+.menu-btn{
+  font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.14em;
+  text-transform:uppercase; color:var(--ink-soft);
+  border:1px solid var(--rule-strong); border-radius:2px;
+  padding:.28rem .5rem; background:var(--card); cursor:pointer;
+}
+.menu-btn:hover{ border-color:var(--carbon); color:var(--carbon); }
+.menu-btn:focus-visible{ outline:2px solid var(--carbon); outline-offset:1px; }
+
+.navpanel{ border-top:1px solid var(--rule); background:var(--card); }
+.navpanel a{
+  display:block; padding:.6rem 1.25rem; text-decoration:none; color:var(--ink-soft);
+  border-bottom:1px dotted var(--rule); font-size:.95rem;
+}
+.navpanel a:last-child{ border-bottom:0; }
+.navpanel a[aria-current="page"]{ color:var(--ink); font-weight:600; }
+.navpanel a[aria-current="page"]::before{ content:"▸ "; color:var(--carbon); }
