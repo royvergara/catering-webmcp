@@ -89,7 +89,7 @@ test('the generated stylesheet carries the design tokens, not just stock utiliti
   // category the config extends — colours, radius, shadow, family — and every one has
   // to be a class the pages still use, because tailwind only generates what it finds.
   for (const token of ['text-ink-mute', 'bg-paper-card', 'bg-paper-sunk', 'border-rule',
-                       'text-carbon', 'rounded-chit', 'hover:shadow-chit', 'font-display']) {
+                       'text-carbon', 'rounded-chit', 'hover:shadow-chit', 'font-mono']) {
     assert.ok(tailwind.includes(selectorFor(token)), `${token} is missing from the stylesheet`);
   }
 });

@@ -41,7 +41,7 @@
   </section>
 
   <section class="mb-12">
-    <h2 class="font-display font-bold text-lg mb-1">Vendors</h2>
+    <h2 class="font-semibold text-lg mb-1">Vendors</h2>
     <p class="text-ink-soft text-[15px] mb-4">
       Each vendor is its own page with its own tools. Open one and ask an agent what it offers.
     </p>
@@ -51,13 +51,13 @@
   <section class="grid gap-3 sm:grid-cols-2 mb-12">
     <a href="/harness.html" class="chit no-underline text-ink block">
       <div class="chit-body">
-        <div class="font-display font-bold mb-1">Tool harness</div>
+        <div class="font-semibold mb-1">Tool harness</div>
         <p class="text-[14px] text-ink-soft m-0">Fire every tool by hand. Works in any browser, phone included.</p>
       </div>
     </a>
     <a href="/smoke.html" class="chit no-underline text-ink block">
       <div class="chit-body">
-        <div class="font-display font-bold mb-1">Smoke test</div>
+        <div class="font-semibold mb-1">Smoke test</div>
         <p class="text-[14px] text-ink-soft m-0">Confirm an agent can discover and call a tool here.</p>
       </div>
     </a>
@@ -85,7 +85,7 @@ document.getElementById('vendors').innerHTML = vs.map(v => `
   <a class="chit no-underline text-ink block hover:shadow-chit" href="/vendor.html?v=${encodeURIComponent(v.slug)}">
     <div class="chit-body">
       <div class="flex items-center gap-2 mb-1">
-        <span class="font-display font-bold">${esc(v.name)}</span>
+        <span class="font-semibold">${esc(v.name)}</span>
         ${tierBadge(v.tier)}
       </div>
       <p class="text-[14px] text-ink-soft m-0">${esc(v.blurb)}</p>

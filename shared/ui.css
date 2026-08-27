@@ -10,13 +10,23 @@
   --covered:#0F6B4F; --covered-soft:#E2F2EC;
 }
 html{ -webkit-text-size-adjust:100%; }
-body{
-  background:var(--paper); color:var(--ink);
-  font-family:"IBM Plex Sans",system-ui,sans-serif;
-  /* faint prep-sheet grid, not decoration: it reads as a worksheet */
-  background-image:linear-gradient(rgba(185,193,204,.34) 1px,transparent 1px);
-  background-size:100% 34px; background-position:0 -1px;
+/* Paper. The ruling was loud enough to read as a grid over the text; it should
+   read as the stock the sheet is printed on. So: the rules drop to a whisper,
+   and the surface gets a little tooth. The grain is one inline SVG turbulence
+   tile — no image file, no third-party request, and it stitches so the repeat
+   has no seam. */
+:root{
+  --grain-soft:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)' opacity='0.14'/%3E%3C/svg%3E");
+  --grain:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.82' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='180' height='180' filter='url(%23g)' opacity='0.32'/%3E%3C/svg%3E");
 }
+body{
+  background-color:var(--paper); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif;
+  background-image:var(--grain), linear-gradient(rgba(185,193,204,.16) 1px,transparent 1px);
+  background-size:180px 180px, 100% 34px;
+  background-position:0 0, 0 -1px;
+}
+
 @media (prefers-reduced-motion:no-preference){
   .rise{ animation:rise .32s cubic-bezier(.2,.7,.3,1) both; }
   @keyframes rise{ from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
@@ -24,7 +34,10 @@ body{
 
 /* --- chit: the core surface. A ticket, not a rounded card. --- */
 .chit{
-  background:var(--card); border:1px solid var(--rule); border-radius:2px;
+  /* the same stock as the sheet, one shade brighter and a lighter tooth — set as
+     longhand because the `background:` shorthand would wipe the image out */
+  background-color:var(--card); background-image:var(--grain-soft);
+  border:1px solid var(--rule); border-radius:2px;
   box-shadow:0 1px 0 var(--rule), 0 6px 18px -14px rgba(16,19,26,.4);
 }
 .chit-head{
@@ -33,9 +46,7 @@ body{
   background:linear-gradient(180deg,#fff, #FAFBFC);
 }
 .chit-title{
-  font-family:Fraunces,Georgia,serif;
-  /* the text cut, not the display one: at label size the fine serifs would break up */
-  font-variation-settings:'opsz' 14,'wght' 600,'SOFT' 0,'WONK' 0;
+  font-family:"IBM Plex Sans",system-ui,sans-serif; font-weight:600;
   font-size:.78rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft);
 }
 .chit-note{ font-family:"IBM Plex Mono",monospace; font-size:.7rem; color:var(--ink-mute); margin-left:auto; }
@@ -82,8 +93,7 @@ body{
 .field:focus{ outline:2px solid var(--carbon); outline-offset:1px; border-color:var(--carbon); }
 .btn{
   display:inline-flex; align-items:center; gap:.4rem; cursor:pointer;
-  font-family:Fraunces,Georgia,serif; font-variation-settings:'opsz' 24,'wght' 600,'SOFT' 0,'WONK' 0;
-  letter-spacing:.01em;
+  font-family:"IBM Plex Sans",system-ui,sans-serif; font-weight:600; letter-spacing:.01em;
   padding:.6rem 1rem; border-radius:2px; border:1px solid var(--ink);
   background:var(--ink); color:#fff;
 }
@@ -156,9 +166,11 @@ a{ color:var(--carbon); }
 }
 .sheethead h1{
   margin:0; max-width:30rem;
+  /* The serif appears exactly once on a page: here. It is the title face, not a
+     second UI face — labels, buttons and the wordmark stay in the sans, or the
+     page reads as two designs arguing. Nothing else may set this family, which
+     is why there is no utility class for it. */
   font-family:Fraunces,Georgia,serif;
-  /* the display cut with WONK on: the flared leg, the angled terminals. This is
-     the one place the face is allowed to have an opinion. */
   font-variation-settings:'opsz' 144,'wght' 500,'SOFT' 24,'WONK' 1;
   font-size:clamp(1.6rem,4.4vw,2.15rem); line-height:1.16; letter-spacing:-.005em;
   text-wrap:balance;
@@ -201,9 +213,8 @@ a{ color:var(--carbon); }
    the name is set, the protocol is stamped. */
 .mark{ display:inline-flex; align-items:baseline; gap:.12rem; text-decoration:none; white-space:nowrap; }
 .mark-name{
-  font-family:Fraunces,Georgia,serif;
-  font-variation-settings:'opsz' 72,'wght' 700,'SOFT' 0,'WONK' 1;
-  font-size:1rem; letter-spacing:.005em; color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,sans-serif; font-weight:600;
+  font-size:.9rem; letter-spacing:.04em; color:var(--ink);
 }
 .mark-dot{ color:var(--carbon); font-weight:800; }
 .mark-code{
