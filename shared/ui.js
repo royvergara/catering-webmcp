@@ -15,12 +15,18 @@ const link = (n, active, mobile) => {
     : `<a href="${n.href}" class="navlink"${cur}>${n.label}</a>`;
 };
 
+// Open at the top. The real work is done by the inline script in every page's
+// <head>: scroll restoration has to be switched off before the browser decides to
+// restore, and a module script is deferred, so doing it from here was always too
+// late — Chromium happened to forgive it and iOS Safari did not. This is only the
+// belt: if a page still arrives scrolled, put it back once. A fragment in the URL
+// means the reader asked to land somewhere, so leave it alone.
+function openAtTop() {
+  if (!location.hash && window.scrollY) window.scrollTo(0, 0);
+}
+
 export function mountHeader(active) {
-  // Open at the top. Browsers restore the scroll position of a URL you have seen
-  // before, which drops someone who has never read the page into the middle of it —
-  // on this site, past the one paragraph that says what they are looking at.
-  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-  if (!location.hash) window.scrollTo(0, 0);
+  openAtTop();
 
   const el = document.getElementById('siteHeader');
   if (!el) return;
