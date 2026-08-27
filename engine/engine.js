@@ -64,26 +64,61 @@ export function checkCoverage(basket, occasion) {
   return out;
 }
 
+// Most obligations pool across the event: one chafer order covers every tray on the
+// table, and cleanup is cleanup. A few do not. Collecting from a vendor is owed to
+// that vendor specifically — one caterer delivering its own food does nothing about
+// the other caterer you still have to drive to.
+export const PER_VENDOR_RESOURCES = new Set(['transport', 'someone_on_site_at_delivery']);
+
+const labelResource = g => String(g).replace(/_/g, ' ');
+
+// Who owes what, scoped correctly. Returns pooled gaps and per-vendor gaps separately,
+// so the same answer can drive both the finding and the ownership table.
+export function unmetObligations(requirementsByVendor = {}, occasion = {}) {
+  const pooled = new Set(occasion.hostProvides || []);
+  for (const reqs of Object.values(requirementsByVendor)) {
+    for (const r of reqs.provides || []) if (!PER_VENDOR_RESOURCES.has(r)) pooled.add(r);
+  }
+
+  const pooledGaps = new Set();
+  const perVendorGaps = [];
+  for (const [slug, reqs] of Object.entries(requirementsByVendor)) {
+    for (const r of reqs.requires || []) {
+      if (PER_VENDOR_RESOURCES.has(r)) {
+        const selfCovers = (reqs.provides || []).includes(r);
+        const hostCovers = (occasion.hostProvides || []).includes(r);
+        if (!selfCovers && !hostCovers) perVendorGaps.push({ resource: r, vendor: slug });
+      } else if (!pooled.has(r)) {
+        pooledGaps.add(r);
+      }
+    }
+  }
+  return { pooled: [...pooledGaps], perVendor: perVendorGaps, provided: pooled };
+}
+
 export function checkUnclaimed(basket, requirementsByVendor, occasion) {
-  const owned = new Set();
-  for (const reqs of Object.values(requirementsByVendor)) {
-    for (const r of reqs.provides || []) owned.add(r);
-  }
-  for (const r of occasion.hostProvides || []) owned.add(r);
+  const { pooled, perVendor } = unmetObligations(requirementsByVendor, occasion);
+  if (!pooled.length && !perVendor.length) return [];
 
-  const needed = new Set();
-  for (const reqs of Object.values(requirementsByVendor)) {
-    for (const r of reqs.requires || []) needed.add(r);
+  const list = pooled.map(labelResource);
+  const parts = [];
+  if (list.length) {
+    parts.push(list.length === 1
+      ? `Nobody is bringing ${list[0]}.`
+      : `Nobody is bringing ${list.slice(0, -1).join(', ')} or ${list.at(-1)}.`);
+  }
+  if (perVendor.length) {
+    const byResource = {};
+    for (const g of perVendor) (byResource[g.resource] ||= []).push(g.vendor);
+    for (const [resource, vendors] of Object.entries(byResource)) {
+      parts.push(`Nobody is covering ${labelResource(resource)} for ${vendors.join(' or ')}.`);
+    }
   }
 
-  const gaps = [...needed].filter(r => !owned.has(r));
-  if (!gaps.length) return [];
-  const label = g => g.replace(/_/g, ' ');
   return [{
-    check: 'unclaimed', severity: 'blocker', resources: gaps,
-    message: gaps.length === 1
-      ? `Nobody is bringing ${label(gaps[0])}.`
-      : `Nobody is bringing ${gaps.slice(0, -1).map(label).join(', ')} or ${label(gaps.at(-1))}.`
+    check: 'unclaimed', severity: 'blocker',
+    resources: pooled, perVendor,
+    message: parts.join(' ')
   }];
 }
 

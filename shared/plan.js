@@ -1,5 +1,5 @@
 // Pure planning logic. No DOM, no fetch. Composes a basket and explains the arithmetic.
-import { deriveDemand, normalizeItem, runChecks } from '../engine/engine.js';
+import { deriveDemand, normalizeItem, runChecks, unmetObligations } from '../engine/engine.js';
 import { deriveAssumptions, applyAssumptions, reviseAssumption, carryConfirmed } from '../engine/assumptions.js';
 import { diffFindings, summarizeDelta } from '../engine/replan.js';
 import { admitVendors } from '../engine/trust.js';
@@ -342,23 +342,39 @@ export function replan(plan, vendors, change) {
 }
 
 export function ownershipTable(plan, vendors) {
+  const byVendor = plan.requirementsByVendor || {};
+  const occasion = plan.occasion || {};
+  // The same scoped answer the unclaimed check uses, so the table and the finding can
+  // never disagree about who owes what.
+  const { pooled, perVendor } = unmetObligations(byVendor, occasion);
+  const nameOf = slug => (vendors.find(v => v.slug === slug) || {}).name || slug;
+
   const rows = [];
-  for (const [slug, r] of Object.entries(plan.requirementsByVendor)) {
-    const v = vendors.find(x => x.slug === slug);
-    for (const p of r.provides || []) rows.push({ job: p, who: v.name, source: 'vendor' });
-    for (const q of r.requires || []) rows.push({ job: q, who: 'You', source: 'left to you' });
-  }
-
   const seen = new Set();
-  const unique = rows.filter(r => { const k = r.job + r.who; if (seen.has(k)) return false; seen.add(k); return true; });
+  const add = (job, who, extra = {}) => {
+    const key = `${job}|${who}|${extra.for || ''}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    rows.push({ job, who, ...extra });
+  };
 
-  const withHolding = addHostHoldingJob(unique, {
+  // What a vendor actually provides is that vendor's job, and is not also yours.
+  for (const [slug, r] of Object.entries(byVendor)) {
+    for (const p of r.provides || []) add(p, nameOf(slug), { source: 'vendor' });
+  }
+  // Pooled obligations nobody covers: one chafer order covers the whole table.
+  for (const r of pooled) add(r, 'You', { source: 'left to you' });
+  // Owed to one vendor in particular, so named: another caterer delivering its own
+  // food does nothing about the one you still have to drive to.
+  for (const g of perVendor) add(g.resource, 'You', { source: 'left to you', for: nameOf(g.vendor) });
+
+  const withHolding = addHostHoldingJob(rows, {
     serviceLevel: plan.serviceLevel,
     hasHotFood: (plan.basket?.items || []).some(i => i.hot)
   });
 
-  // job, who, and when: the third column is the one a receipt never shows
-  return timeline(withHolding, plan.occasion || {});
+  // job, when, who: the middle column is the one a receipt never shows
+  return timeline(withHolding, occasion);
 }
 
 

@@ -228,7 +228,8 @@ function render(plan) {
   // job, when, who — the middle column is the one a receipt never shows
   els.owners.innerHTML = rows.map(r => `
     <div class="row items-baseline">
-      <span class="row-name">${r.who === 'You' ? `<span class="tape">${esc(label(r.job))}</span>` : esc(label(r.job))}</span>
+      <span class="row-name">${r.who === 'You' ? `<span class="tape">${esc(label(r.job))}</span>` : esc(label(r.job))}${
+        r.for ? `<span class="text-ink-mute"> for ${esc(r.for)}</span>` : ''}</span>
       <span class="text-ink-mute px-3 whitespace-nowrap">${esc(r.when)}</span>
       <span class="row-num ${r.who === 'You' ? 'font-semibold' : 'text-ink-mute'}">${esc(r.who)}</span>
     </div>`).join('');

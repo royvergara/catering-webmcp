@@ -23,7 +23,8 @@ export const findingKey = f =>
 function magnitude(f) {
   if (f.needed !== undefined && f.supplied !== undefined) return f.needed - f.supplied;
   if (f.over !== undefined) return f.over;
-  if (f.resources) return f.resources.length;
+  // an unclaimed complaint is as big as everything it leaves unowned, pooled and per-vendor
+  if (f.resources) return f.resources.length + (f.perVendor ? f.perVendor.length : 0);
   if (f.hours !== undefined) return f.hours;
   if (f.minutes !== undefined) return -f.minutes;   // less time is worse
   return null;
