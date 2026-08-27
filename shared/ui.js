@@ -15,12 +15,50 @@ const link = (n, active, mobile) => {
     : `<a href="${n.href}" class="navlink"${cur}>${n.label}</a>`;
 };
 
-export function mountHeader(active) {
-  // Open at the top. Browsers restore the scroll position of a URL you have seen
-  // before, which drops someone who has never read the page into the middle of it —
-  // on this site, past the one paragraph that says what they are looking at.
+// Open at the top. Browsers restore the scroll offset of a URL you have seen
+// before, which drops someone who has never read the page into the middle of it —
+// on this site, past the paragraph that says what they are looking at.
+//
+// One scrollTo when the script runs is not enough. iOS Safari applies its restore
+// *after* load, once layout has settled, so it lands after a single early call and
+// puts the reader back down the page. Chromium honours the early call, which is why
+// this only ever showed up on a phone.
+//
+// So hold the top for a beat rather than setting it once, and re-arm at each moment
+// the page can still move: load, a back-forward restore, the display face swapping
+// in. A tick is a no-op unless something moved the page, the hold is bounded, and
+// the whole thing stops the instant the reader scrolls — a restore is not a scroll
+// anyone asked for, but the next one might be.
+function openAtTop() {
   if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
-  if (!location.hash) window.scrollTo(0, 0);
+  if (location.hash) return;                     // a deep link means to land there
+
+  let reader = false;
+  const yieldToReader = () => { reader = true; };
+  // pointerdown, not touchstart: a mouse click fires neither touch nor wheel, and
+  // the planner scrolls its own answer into view when you press Plan it — the hold
+  // must not yank that back.
+  for (const event of ['pointerdown', 'wheel', 'keydown'])
+    addEventListener(event, yieldToReader, { passive: true, once: true });
+
+  const hold = (ms) => {
+    const until = performance.now() + ms;
+    const tick = () => {
+      if (reader) return;
+      if (window.scrollY) window.scrollTo(0, 0);
+      if (performance.now() < until) requestAnimationFrame(tick);
+    };
+    tick();
+  };
+
+  hold(400);
+  addEventListener('load', () => hold(400));
+  addEventListener('pageshow', () => hold(400));  // includes a bfcache restore
+  document.fonts?.ready.then(() => hold(400));
+}
+
+export function mountHeader(active) {
+  openAtTop();
 
   const el = document.getElementById('siteHeader');
   if (!el) return;
