@@ -1,7 +1,7 @@
 // Pure planning logic. No DOM, no fetch. Composes a basket and explains the arithmetic.
 import { deriveDemand, normalizeItem, runChecks, unmetObligations } from '../engine/engine.js';
 import { deriveAssumptions, applyAssumptions, reviseAssumption, carryConfirmed } from '../engine/assumptions.js';
-import { diffFindings, summarizeDelta } from '../engine/replan.js';
+import { diffFindings, summarizeDelta, diffOccasion, describeOccasionChange } from '../engine/replan.js';
 import { admitVendors } from '../engine/trust.js';
 import { describeOption, rankOptions, distinct, justifySplit } from '../engine/options.js';
 import { timeline, addHostHoldingJob } from '../engine/schedule.js';
@@ -312,7 +312,7 @@ export function revisePlan(plan, vendors, id, value) {
 // back is the difference, because that is what a person needs to read.
 export function replan(plan, vendors, change) {
   const base = plan.baseOccasion || plan.occasion;
-  let after, what;
+  let after, what, delta0 = {};
 
   if (change.serviceLevel) {
     after = assemblePlan(base, vendors, change.serviceLevel,
@@ -322,7 +322,10 @@ export function replan(plan, vendors, change) {
     const reparsed = parseOccasion(change.description);
     after = assemblePlan(reparsed, vendors, plan.serviceLevel,
       { assumptions: plan.assumptions, baseOccasion: reparsed, compose: plan.compose });
-    what = `Occasion re-read from a new description.`;
+    // say what the description said differently, not merely that it was read again
+    const inputChanges = diffOccasion(base, reparsed);
+    what = describeOccasionChange(inputChanges);
+    delta0 = { inputChanges };
   } else {
     const was = plan.assumptions.find(a => a.id === change.assumption);
     after = revisePlan(plan, vendors, change.assumption, change.value);
@@ -331,6 +334,7 @@ export function replan(plan, vendors, change) {
   }
 
   const delta = diffFindings(plan.findings, after.findings);
+  Object.assign(delta, delta0);
   delta.change = what;
   const spent = after.basket.subtotal - plan.basket.subtotal;
   delta.cost = spent === 0

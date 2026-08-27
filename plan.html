@@ -13,8 +13,13 @@
 
 <main class="mx-auto max-w-3xl px-5 py-8">
   <h1 class="font-display font-extrabold tracking-tightest text-[clamp(1.8rem,6vw,2.6rem)] leading-tight mb-2">Planner</h1>
-  <p class="text-ink-soft text-[16px] mb-6 max-w-xl">
+  <p class="text-ink-soft text-[16px] mb-3 max-w-xl">
     Describe the occasion once. This works out what to order and how much, then tells you what the order leaves you holding.
+  </p>
+  <p class="text-ink-mute text-[14px] mb-6 max-w-xl">
+    Three things worth trying: <strong class="text-ink-soft">edit the description and press Plan it</strong>,
+    <strong class="text-ink-soft">change a number under “What this rests on”</strong>, or
+    <strong class="text-ink-soft">switch the service level</strong>. Each one rebuilds the plan and reports only what moved.
   </p>
 
   <!-- input -->
@@ -32,6 +37,7 @@
         </select>
         <button id="go" class="btn ml-auto">Plan it</button>
       </div>
+      <p id="runNote" class="m-0 mt-3 text-[13px] text-ink-mute" aria-live="polite"></p>
       <pre id="err" class="readout mt-3" hidden></pre>
     </div>
   </section>
@@ -137,7 +143,7 @@ mountHeader('Planner');
 // never rely on implicit id globals: `status`, `name`, `length` are window built-ins
 const $ = id => document.getElementById(id);
 const els = {
-  q: $('q'), lvl: $('lvl'), go: $('go'), statusLine: $('statusLine'), err: $('err'),
+  q: $('q'), lvl: $('lvl'), go: $('go'), statusLine: $('statusLine'), err: $('err'), runNote: $('runNote'),
   naiveCard: $('naiveCard'), naive: $('naive'),
   deltaCard: $('deltaCard'), delta: $('delta'), deltaNote: $('deltaNote'),
   optionsCard: $('optionsCard'), options: $('options'), optionsNote: $('optionsNote'),
@@ -153,6 +159,8 @@ let vendors = [];
 let current = null;
 let options = [];
 let chosenId = null;
+let plannedText = null;   // the description the plan on screen was built from
+let firstRun = true;
 const calls = [];
 
 function log(tool, input, output) {
@@ -269,6 +277,7 @@ function choose(id) {
   log('choose_option', { option: id }, { summary: o.summary, subtotal: o.subtotal });
   render(o.plan);
   status(o.plan);
+  announce(`Switched to ${o.summary}`, o.plan, { rebuilt: false });
 }
 
 function renderTrust(plan) {
@@ -363,6 +372,11 @@ function applyChange(change) {
     render(plan);
     renderDelta(delta);
     status(plan);
+    plannedText = els.q.value;
+    announce(change.description !== undefined ? 'Re-planned from your description'
+             : change.serviceLevel ? `Re-planned at ${change.serviceLevel.replace(/_/g, ' ')}`
+             : 'Rebuilt from your correction', plan);
+    revealDelta();
     return plan;
   } catch (e) {
     els.err.hidden = false;
@@ -380,6 +394,8 @@ function renderDelta(delta) {
   els.deltaNote.textContent = brokeCount
     ? `${brokeCount} now broken`
     : 'nothing broke';
+  els.deltaNote.dataset.fresh = els.deltaNote.textContent;
+  els.deltaCard.classList.remove('stale');
 
   // the badge says what happened; the severity says how bad the finding itself is
   const line = (kind, what, text) =>
@@ -397,6 +413,39 @@ function renderDelta(delta) {
     (delta.stillFine.length
       ? `<p class="m-0 mt-2 text-[13px] text-ink-mute">Still fine: ${delta.stillFine.map(c => CHECK_LABELS[c]).join(', ')}.</p>`
       : '');
+}
+
+// Every run says what it just did. Without this the page looks static: it recomputes
+// in under a frame, so nothing on screen tells you a click did anything.
+function announce(action, plan, { rebuilt = true } = {}) {
+  const checks = Object.keys(CHECK_LABELS).length;
+  const blockers = plan.findings.filter(f => f.severity === 'blocker').length;
+  const found = blockers === 0 ? 'No blockers.' : blockers === 1 ? '1 blocker on it.' : `${blockers} blockers on it.`;
+  els.runNote.textContent = rebuilt
+    ? `${action} — read ${vendors.length} vendor sources, composed ${options.length} option${
+        options.length === 1 ? '' : 's'}, ran ${checks} checks. ${found}`
+    : `${action}. ${found}`;
+  els.runNote.classList.remove('flash');
+  void els.runNote.offsetWidth;          // restart the animation on a repeat run
+  els.runNote.classList.add('flash');
+}
+
+// Put the answer where the eye is: if the delta landed off screen, bring it into view.
+function revealDelta() {
+  const box = els.deltaCard.getBoundingClientRect();
+  if (box.top < 0 || box.bottom > window.innerHeight) {
+    els.deltaCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+// The description in the box no longer matches the plan on screen: say so, rather
+// than leaving a stale "what changed" that looks like an answer to the new text.
+function markDeltaStale() {
+  const stale = els.q.value !== plannedText;
+  els.deltaCard.classList.toggle('stale', stale && !els.deltaCard.hidden);
+  els.deltaNote.textContent = stale
+    ? 'you have edited the description since this — press Plan it'
+    : els.deltaNote.dataset.fresh || els.deltaNote.textContent;
 }
 
 function status(plan) {
@@ -437,6 +486,9 @@ function run() {
     render(plan);
     els.deltaCard.hidden = true;   // a first plan has nothing to compare against
     status(plan);
+    plannedText = els.q.value;
+    announce(firstRun ? 'Planned when the page loaded' : 'Planned', plan);
+    firstRun = false;
     return plan;
   } catch (e) {
     els.err.hidden = false;
@@ -445,6 +497,7 @@ function run() {
   }
 }
 
+els.q.addEventListener('input', markDeltaStale);
 els.go.addEventListener('click', () => (current ? applyChange({ description: els.q.value }) : run()));
 els.lvl.addEventListener('change', () => (current ? applyChange({ serviceLevel: els.lvl.value }) : run()));
 

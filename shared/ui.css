@@ -117,3 +117,13 @@ a{ color:var(--carbon); }
 /* A field carrying the mono utility keeps it: `.field { font: inherit }` would
    otherwise win on load order and render the textarea in the sans face. */
 .field.font-mono{ font-family:'IBM Plex Mono', ui-monospace, monospace; }
+
+/* A run finishes in well under a frame. Flash the line that reports it, so a click
+   is visibly acknowledged rather than appearing to do nothing. */
+@keyframes runflash { from { background:var(--tape-soft); } to { background:transparent; } }
+.flash{ animation:runflash 1.1s ease-out 1; border-radius:2px; }
+@media (prefers-reduced-motion: reduce){ .flash{ animation:none; } }
+
+/* The plan on screen no longer matches the text in the box. */
+.chit.stale{ opacity:.55; }
+.chit.stale .chit-note{ color:var(--short); }
