@@ -165,7 +165,7 @@ a{ color:var(--carbon); }
   font-size:.66rem; letter-spacing:.1em; color:var(--ink-mute);
 }
 .sheethead h1{
-  margin:0; max-width:30rem;
+  margin:0;
   /* The serif appears exactly once on a page: here. It is the title face, not a
      second UI face — labels, buttons and the wordmark stay in the sans, or the
      page reads as two designs arguing. Nothing else may set this family, which
@@ -173,10 +173,16 @@ a{ color:var(--carbon); }
   font-family:Fraunces,Georgia,serif;
   font-variation-settings:'opsz' 144,'wght' 500,'SOFT' 24,'WONK' 1;
   font-size:clamp(1.6rem,4.4vw,2.15rem); line-height:1.16; letter-spacing:-.005em;
-  text-wrap:balance;
+  /* A measure, not a shrink-wrap: 40rem still sits inside the 48rem column, so a
+     title only breaks when it genuinely runs out of room. `balance` was here and
+     is the reason these wrapped early — it equalises line lengths, which means
+     pulling every line short. On a phone that left the title using 77% of the
+     width while the paragraph under it used 96%. `pretty` keeps the orphan
+     avoidance and drops the shortening. */
+  max-width:40rem; text-wrap:pretty;
 }
 /* the home page is the same head, one step up — not a different animal */
-.sheethead-hero h1{ font-size:clamp(1.85rem,5.6vw,2.7rem); max-width:36rem; }
+.sheethead-hero h1{ font-size:clamp(1.85rem,5.6vw,2.7rem); }
 .lede{ margin:.7rem 0 0; max-width:34rem; font-size:1rem; line-height:1.6; color:var(--ink-soft); }
 .lede-note{ margin:.6rem 0 0; max-width:34rem; font-size:.875rem; line-height:1.55; color:var(--ink-mute); }
 @media (max-width:480px){
