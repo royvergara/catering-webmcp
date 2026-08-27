@@ -27,10 +27,15 @@ That one addition turns separate purchases into a plan.
 ## Testing
 
 ```
-npm test          # 67 tests: engine checks, corrections, replanning, trust, tool contracts.
+npm test          # 74 tests: engine checks, corrections, replanning, trust, tool contracts.
                   # No browser needed.
 npm run dev       # serve at :8080
 ```
+
+Every asset is served from this origin — no CDN, no third-party request, so the pages
+render the same on a conference network as they do offline. `shared/tailwind.css` is
+generated and committed; regenerate it only if a design token or a utility class
+changes, with the command in `tailwind.config.js`.
 
 `/harness.html` shims `document.modelContext` and exposes a button per tool, so every tool can
 be exercised in any browser, phone included. Only tool *discovery* and cross-page chaining
