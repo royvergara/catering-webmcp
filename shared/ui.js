@@ -17,6 +17,12 @@ const link = (n, active, mobile) => {
 };
 
 export function mountHeader(active) {
+  // Open at the top. Browsers restore the scroll position of a URL you have seen
+  // before, which drops someone who has never read the page into the middle of it —
+  // on this site, past the one paragraph that says what they are looking at.
+  if ('scrollRestoration' in history) history.scrollRestoration = 'manual';
+  if (!location.hash) window.scrollTo(0, 0);
+
   const el = document.getElementById('siteHeader');
   if (!el) return;
 
