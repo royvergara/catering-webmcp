@@ -1,0 +1,31 @@
+{
+  "slug": "green-fork",
+  "name": "Green Fork Kitchen",
+  "tier": "T0",
+  "kind": "caterer",
+  "blurb": "Seasonal trays and grain bowls. Pickup or delivery inside the loop.",
+  "service_levels": ["pickup", "delivery", "dropoff_setup"],
+  "lead_time_hours": 48,
+  "blackout_dates": [],
+  "menu": [
+    { "id": "gf-chicken", "name": "Herb chicken tray", "category": "main",
+      "claimed_serves": 20, "basis_mains": 1, "basis_stated": true, "portion_oz": 6,
+      "price": 168, "dietary": ["gluten_free"], "hot": true, "minimum": 1 },
+    { "id": "gf-veg", "name": "Roasted vegetable tray", "category": "main",
+      "claimed_serves": 10, "basis_mains": 1, "basis_stated": true, "portion_oz": 6,
+      "price": 78, "dietary": ["vegetarian", "gluten_free"], "hot": true, "minimum": 1 },
+    { "id": "gf-salad", "name": "Chopped salad", "category": "salad",
+      "claimed_serves": 25, "basis_mains": 3, "basis_stated": false, "portion_oz": 4,
+      "price": 62, "dietary": ["vegetarian", "gluten_free"], "hot": false, "minimum": 1 }
+  ],
+  "requirements": {
+    "pickup":        { "requires": ["transport", "warming_trays", "fuel", "serving_utensils", "cleanup"], "provides": ["food"] },
+    "delivery":      { "requires": ["warming_trays", "fuel", "serving_utensils", "cleanup"], "provides": ["food", "transport"] },
+    "dropoff_setup": { "requires": ["fuel_monitoring", "refills", "cleanup"], "provides": ["food", "transport", "warming_trays", "serving_utensils"] }
+  },
+  "accommodations": [
+    { "for": "timing", "description": "Move pickup to 4:30pm", "cost": 0, "conditions": "Subject to kitchen load" },
+    { "for": "timing", "description": "Add insulated hot boxes, holds 4 hours", "cost": 25, "conditions": "Return next business day" },
+    { "for": "unclaimed", "resource": "warming_trays", "description": "Chafer set with fuel", "cost": 40, "conditions": "Pickup by 3pm" }
+  ]
+}

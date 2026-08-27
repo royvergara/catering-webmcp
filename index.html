@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Catering WebMCP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/shared/theme.js"></script>
+<link rel="stylesheet" href="/shared/ui.css">
+</head>
+<body class="font-sans">
+<div id="siteHeader"></div>
+
+<main class="mx-auto max-w-3xl px-5 py-10">
+
+  <section class="rise mb-10">
+    <p class="font-mono text-[11px] uppercase tracking-[.18em] text-ink-mute mb-3">Order sheet for a crowd</p>
+    <h1 class="font-display font-extrabold tracking-tightest leading-[0.95] text-[clamp(2.2rem,8vw,3.6rem)] mb-4">
+      The order looked fine.<br>
+      <span class="text-carbon">Then Saturday happened.</span>
+    </h1>
+    <p class="text-[17px] text-ink-soft max-w-xl">
+      Ordering food for forty people is easy. Knowing what to order, how much, and what the order
+      quietly leaves you doing is not. Nothing on the web tells you that.
+    </p>
+    <a href="/plan.html" class="btn mt-6 no-underline text-white">Open the planner</a>
+  </section>
+
+  <section class="chit perf mb-14 rise">
+    <div class="chit-head"><span class="chit-title">What a receipt never says</span><span class="chit-note">3 of 7 jobs</span></div>
+    <div class="chit-body font-mono text-[13px]">
+      <div class="row"><span class="row-name">Cook and pack</span><span class="row-num text-ink-mute">Green Fork</span></div>
+      <div class="row"><span class="row-name">Deliver and set trays</span><span class="row-num text-ink-mute">Green Fork</span></div>
+      <div class="row"><span class="row-name"><span class="tape">Hold above 140&deg;F, 5:15&ndash;8:00</span></span><span class="row-num">You</span></div>
+      <div class="row"><span class="row-name"><span class="tape">Refill trays during service</span></span><span class="row-num">You</span></div>
+      <div class="row"><span class="row-name"><span class="tape">Trash and cleanup</span></span><span class="row-num">You</span></div>
+    </div>
+  </section>
+
+  <section class="mb-12">
+    <h2 class="font-display font-bold text-lg mb-1">Vendors</h2>
+    <p class="text-ink-soft text-[15px] mb-4">
+      Each vendor is its own page with its own tools. Open one and ask an agent what it offers.
+    </p>
+    <div class="grid gap-3 sm:grid-cols-2" id="vendors"></div>
+  </section>
+
+  <section class="grid gap-3 sm:grid-cols-2 mb-12">
+    <a href="/harness.html" class="chit no-underline text-ink block">
+      <div class="chit-body">
+        <div class="font-display font-bold mb-1">Tool harness</div>
+        <p class="text-[14px] text-ink-soft m-0">Fire every tool by hand. Works in any browser, phone included.</p>
+      </div>
+    </a>
+    <a href="/smoke.html" class="chit no-underline text-ink block">
+      <div class="chit-body">
+        <div class="font-display font-bold mb-1">Smoke test</div>
+        <p class="text-[14px] text-ink-soft m-0">Confirm an agent can discover and call a tool here.</p>
+      </div>
+    </a>
+  </section>
+
+  <section class="chit">
+    <div class="chit-head"><span class="chit-title">What is real</span></div>
+    <div class="chit-body text-[15px] text-ink-soft space-y-2">
+      <p class="m-0">The six vendors are reference implementations, not real businesses.</p>
+      <p class="m-0">No real caterer publishes what it needs from you. That gap is the whole point.</p>
+      <p class="m-0">No payments. Orders are assembled ready to place on each vendor&rsquo;s own site.</p>
+      <p class="m-0 text-ink-mute">Open in the ChatGPT in-app browser, or Chrome 149+ with
+        <code class="font-mono text-[13px] bg-paper-sunk px-1">chrome://flags/#enable-webmcp-testing</code>.</p>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { mountHeader, tierBadge } from '/shared/ui.js';
+mountHeader('Overview');
+
+const slugs = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','loop-rentals','handoff-staffing'];
+const vs = await Promise.all(slugs.map(s => fetch(`/data/vendors/${s}.json`).then(r => r.json())));
+document.getElementById('vendors').innerHTML = vs.map(v => `
+  <a class="chit no-underline text-ink block hover:shadow-chit" href="/vendor.html?v=${v.slug}">
+    <div class="chit-body">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="font-display font-bold">${v.name}</span>
+        ${tierBadge(v.tier)}
+      </div>
+      <p class="text-[14px] text-ink-soft m-0">${v.blurb}</p>
+    </div>
+  </a>`).join('');
+</script>
+</body>
+</html>

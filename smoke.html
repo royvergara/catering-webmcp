@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Smoke test · Catering WebMCP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/shared/theme.js"></script>
+<link rel="stylesheet" href="/shared/ui.css">
+</head>
+<body class="font-sans">
+<div id="siteHeader"></div>
+
+<main class="mx-auto max-w-3xl px-5 py-8">
+  <h1 class="font-display font-extrabold tracking-tightest text-[clamp(1.8rem,6vw,2.4rem)] leading-tight mb-2">Smoke test</h1>
+  <p class="text-ink-soft text-[16px] mb-6 max-w-xl">One job: prove an agent can discover and call a tool on this page.</p>
+
+  <section class="chit mb-4">
+    <div class="chit-head"><span class="chit-title">Status</span></div>
+    <div class="chit-body">
+      <p id="statusLine" class="m-0 mb-3 font-display font-bold text-[15px]">checking…</p>
+      <pre id="log" class="readout">no calls yet</pre>
+    </div>
+  </section>
+
+  <section class="chit">
+    <div class="chit-head"><span class="chit-title">How to test</span></div>
+    <div class="chit-body text-[15px] text-ink-soft">
+      <ol class="m-0 pl-5 space-y-1">
+        <li>Open this page in the ChatGPT in-app browser, or Chrome 149+ with
+          <code class="font-mono text-[13px] bg-paper-sunk px-1">chrome://flags/#enable-webmcp-testing</code>.</li>
+        <li>Ask the agent what tools this page offers.</li>
+        <li>Ask it to use <code class="font-mono text-[13px] bg-paper-sunk px-1">ping</code> with the message hello.</li>
+        <li>The call lands in the log above.</li>
+      </ol>
+    </div>
+  </section>
+</main>
+
+<script type="module">
+import { mountHeader } from '/shared/ui.js';
+mountHeader('Smoke test');
+
+const statusEl = document.getElementById('statusLine');
+const logEl = document.getElementById('log');
+const calls = [];
+const log = (name, input, output) => {
+  calls.unshift({ at: new Date().toISOString(), name, input, output });
+  logEl.textContent = JSON.stringify(calls, null, 2);
+};
+
+if (document.modelContext?.registerTool) {
+  statusEl.textContent = 'WebMCP available. Two tools registered.';
+  statusEl.style.color = 'var(--covered)';
+
+  document.modelContext.registerTool({
+    name: 'ping',
+    description: 'Echo a message back. Verifies WebMCP tool discovery and invocation.',
+    inputSchema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] },
+    execute: async (input) => {
+      const out = { echoed: input.message, at: new Date().toISOString() };
+      log('ping', input, out);
+      return { content: [{ type: 'text', text: JSON.stringify(out) }] };
+    }
+  });
+
+  document.modelContext.registerTool({
+    name: 'get_page_facts',
+    description: 'Return basic facts about this page, to verify multi-tool discovery.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: async () => {
+      const out = { page: 'smoke', url: location.href, tools: ['ping', 'get_page_facts'] };
+      log('get_page_facts', {}, out);
+      return { content: [{ type: 'text', text: JSON.stringify(out) }] };
+    }
+  });
+} else {
+  statusEl.textContent = 'WebMCP not available in this browser. Enable the flag, or use the ChatGPT in-app browser.';
+  statusEl.style.color = 'var(--short)';
+}
+</script>
+</body>
+</html>

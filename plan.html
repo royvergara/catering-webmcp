@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Planner · Catering WebMCP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/shared/theme.js"></script>
+<link rel="stylesheet" href="/shared/ui.css">
+</head>
+<body class="font-sans">
+<div id="siteHeader"></div>
+
+<main class="mx-auto max-w-3xl px-5 py-8">
+  <h1 class="font-display font-extrabold tracking-tightest text-[clamp(1.8rem,6vw,2.6rem)] leading-tight mb-2">Planner</h1>
+  <p class="text-ink-soft text-[16px] mb-6 max-w-xl">
+    Describe the occasion once. This works out what to order and how much, then tells you what the order leaves you holding.
+  </p>
+
+  <!-- input -->
+  <section class="chit mb-4">
+    <div class="chit-head"><span class="chit-title">The occasion</span><span class="chit-note" id="statusLine">loading…</span></div>
+    <div class="chit-body">
+      <label for="q" class="sr-only">Describe the occasion</label>
+      <textarea id="q" rows="3" class="field font-mono text-[13px] mb-3">40 people, Saturday at 6, $600, six vegetarians, two gluten free, no kitchen at the venue</textarea>
+      <div class="flex flex-wrap items-center gap-3">
+        <label for="lvl" class="font-mono text-[11px] uppercase tracking-[.12em] text-ink-mute">Service level</label>
+        <select id="lvl" class="field w-auto text-[14px] py-1.5">
+          <option value="pickup">pickup</option>
+          <option value="delivery">delivery</option>
+          <option value="dropoff_setup">drop off with setup</option>
+        </select>
+        <button id="go" class="btn ml-auto">Plan it</button>
+      </div>
+      <pre id="err" class="readout mt-3" hidden></pre>
+    </div>
+  </section>
+
+  <!-- naive baseline -->
+  <section class="chit mb-4" id="naiveCard" hidden>
+    <div class="chit-head"><span class="chit-title">What you would have ordered</span><span class="chit-note">one vendor, sized by headcount</span></div>
+    <div class="chit-body" id="naive"></div>
+  </section>
+
+  <!-- composed order -->
+  <section class="chit mb-4" id="basketCard" hidden>
+    <div class="chit-head"><span class="chit-title">The order</span><span class="chit-note" id="basketNote"></span></div>
+    <div class="chit-body">
+      <div id="basket" class="font-mono text-[13px]"></div>
+      <details class="mt-4 border-t border-rule pt-3">
+        <summary class="cursor-pointer font-mono text-[11px] uppercase tracking-[.12em] text-carbon">Why these quantities</summary>
+        <pre id="math" class="readout mt-2"></pre>
+      </details>
+    </div>
+  </section>
+
+  <!-- findings -->
+  <section class="chit mb-4" id="findCard" hidden>
+    <div class="chit-head"><span class="chit-title">What the order does not cover</span></div>
+    <div class="chit-body" id="findings"></div>
+  </section>
+
+  <!-- ownership: the signature -->
+  <section class="chit perf mb-8" id="ownCard" hidden>
+    <div class="chit-head"><span class="chit-title">Who is doing what</span><span class="chit-note" id="ownNote"></span></div>
+    <div class="chit-body font-mono text-[13px]" id="owners"></div>
+  </section>
+
+  <section class="chit">
+    <div class="chit-head"><span class="chit-title">Agent tool calls</span><span class="chit-note">live</span></div>
+    <div class="chit-body"><pre id="log" class="readout">no calls yet</pre></div>
+  </section>
+</main>
+
+<script>
+window.addEventListener('error', e => {
+  const el = document.getElementById('err');
+  el.hidden = false; el.textContent = 'Error: ' + (e.error && e.error.stack || e.message);
+});
+window.addEventListener('unhandledrejection', e => {
+  const el = document.getElementById('err');
+  el.hidden = false; el.textContent = 'Error: ' + (e.reason && e.reason.stack || e.reason);
+});
+</script>
+
+<script type="module">
+import { parseOccasion, assemblePlan, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
+import { runChecks } from '/engine/engine.js';
+import { mountHeader, badge, tierBadge, money, label } from '/shared/ui.js';
+
+mountHeader('Planner');
+
+// never rely on implicit id globals: `status`, `name`, `length` are window built-ins
+const $ = id => document.getElementById(id);
+const els = {
+  q: $('q'), lvl: $('lvl'), go: $('go'), statusLine: $('statusLine'), err: $('err'),
+  naiveCard: $('naiveCard'), naive: $('naive'),
+  basketCard: $('basketCard'), basket: $('basket'), basketNote: $('basketNote'), math: $('math'),
+  findCard: $('findCard'), findings: $('findings'),
+  ownCard: $('ownCard'), owners: $('owners'), ownNote: $('ownNote'), log: $('log')
+};
+
+const SLUGS = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','loop-rentals','handoff-staffing'];
+let vendors = [];
+let current = null;
+const calls = [];
+
+function log(tool, input, output) {
+  calls.unshift({ at: new Date().toISOString(), tool, input, output });
+  els.log.textContent = JSON.stringify(calls, null, 2).slice(0, 4000);
+}
+
+function render(plan) {
+  current = plan;
+  for (const c of ['naiveCard','basketCard','findCard','ownCard']) { els[c].hidden = false; els[c].classList.add('rise'); }
+
+  // baseline
+  const nb = naiveBasket(plan.occasion, vendors);
+  const nf = runChecks({ basket: { ...nb, pickups: [] }, occasion: plan.occasion }).findings;
+  els.naive.innerHTML = `
+    <div class="font-mono text-[13px] mb-3">${nb.items.length} &times; ${nb.items[0].name}
+      <span class="text-ink-mute">· ${nb.items[0].vendorName}</span>
+      <span class="float-right">${money(nb.subtotal)}</span></div>
+    ${nf.map(f => `<div class="flex gap-2 items-baseline text-[14px] text-short mb-1">
+        <span aria-hidden="true">&times;</span><span>${f.message}</span></div>`).join('')
+      || '<div class="text-[14px] text-covered">No issues.</div>'}`;
+
+  // composed order
+  els.basketNote.textContent = `${plan.basket.vendorsUsed.length} vendor${plan.basket.vendorsUsed.length > 1 ? 's' : ''} · ${money(plan.basket.subtotal)}`;
+  els.basket.innerHTML = plan.basket.items.map(i => `
+    <div class="row">
+      <span class="row-name">${i.name}
+        <span class="text-ink-mute">· ${i.vendorName}</span>
+        ${tierBadge(i.tier)}
+        ${i.basis_stated ? '' : '<span class="badge badge-risk">basis assumed</span>'}
+      </span>
+      <span class="row-num">${money(i.price)}</span>
+    </div>`).join('') +
+    `<div class="row border-t-2 border-ink mt-1 pt-2">
+       <span class="row-name font-semibold">Subtotal</span>
+       <span class="row-num font-semibold">${money(plan.basket.subtotal)}</span>
+     </div>` +
+    (plan.basket.splitReason
+      ? `<p class="mt-3 text-[13px] text-ink-mute font-sans m-0">Split across vendors — ${plan.basket.splitReason}</p>` : '');
+
+  const firstMain = plan.basket.items.find(i => i.category === 'main');
+  els.math.textContent = [...plan.basket.why, '',
+    ...(firstMain ? explainQuantity(firstMain, plan.occasion, plan.basket.demand) : [])].join('\n');
+
+  // findings
+  els.findings.innerHTML = plan.findings.length
+    ? plan.findings.map((f, idx) => `
+        <div class="py-3 ${idx ? 'border-t border-rule' : ''}">
+          <div class="flex flex-wrap items-baseline gap-2 mb-1">
+            ${badge(f.severity === 'blocker' ? 'blocker' : 'risk', f.severity)}
+            <span class="font-mono text-[11px] uppercase tracking-[.1em] text-ink-mute">${f.check}</span>
+          </div>
+          <p class="m-0 text-[15px]">${f.message}</p>
+          <button data-c="${f.check}" data-i="${idx}" class="btn btn-quiet neg mt-2">What can be done</button>
+          <div id="opt-${idx}"></div>
+        </div>`).join('')
+    : `<p class="m-0 text-[15px] text-covered">Nothing outstanding. Everyone is covered and every job has an owner.</p>`;
+
+  // ownership: the signature element
+  const rows = ownershipTable(plan, vendors);
+  const yours = rows.filter(r => r.who === 'You').length;
+  els.ownNote.textContent = `${yours} of ${rows.length} jobs are yours`;
+  els.owners.innerHTML = rows.map(r => `
+    <div class="row">
+      <span class="row-name">${r.who === 'You' ? `<span class="tape">${label(r.job)}</span>` : label(r.job)}</span>
+      <span class="row-num ${r.who === 'You' ? 'font-semibold' : 'text-ink-mute'}">${r.who}</span>
+    </div>`).join('');
+
+  els.findings.querySelectorAll('.neg').forEach(b => {
+    b.onclick = () => negotiate(b.dataset.c, b.dataset.i);
+  });
+}
+
+function negotiate(constraint, idx) {
+  const options = [];
+  for (const v of vendors) for (const a of v.accommodations || []) if (a.for === constraint) options.push({ vendor: v.name, ...a });
+  log('negotiate', { constraint }, options);
+  $(`opt-${idx}`).innerHTML = `
+    <div class="mt-2 border-l-2 border-carbon pl-3">
+      <p class="font-mono text-[11px] uppercase tracking-[.1em] text-carbon m-0 mb-1">What each vendor can do</p>
+      ${options.length ? options.map(o => `
+        <div class="row">
+          <span class="row-name text-[14px]">${o.description}
+            <span class="text-ink-mute">· ${o.vendor} · ${o.conditions}</span></span>
+          <span class="row-num text-[14px]">${o.cost === 0 ? 'no charge' : money(o.cost)}</span>
+        </div>`).join('')
+        : '<p class="m-0 text-[14px] text-ink-mute">No vendor offered an accommodation for this.</p>'}
+    </div>`;
+}
+
+function run() {
+  try {
+    const occasion = parseOccasion(els.q.value);
+    const plan = assemblePlan(occasion, vendors, els.lvl.value);
+    log('plan_meal', { description: els.q.value, service_level: els.lvl.value },
+        { headcount: occasion.headcount, dietary: occasion.dietary, findings: plan.findings.length });
+    render(plan);
+    const blockers = plan.findings.filter(f => f.severity === 'blocker').length;
+    els.statusLine.textContent = `${plan.basket.items.length} items · ${money(plan.basket.subtotal)} · ${blockers} blocker${blockers === 1 ? '' : 's'}`;
+    return plan;
+  } catch (e) {
+    els.err.hidden = false;
+    els.err.textContent = 'Error: ' + (e.stack || e);
+    throw e;
+  }
+}
+
+els.go.addEventListener('click', run);
+els.lvl.addEventListener('change', run);
+
+try {
+  vendors = await Promise.all(SLUGS.map(s => fetch(`/data/vendors/${s}.json`).then(r => {
+    if (!r.ok) throw new Error(`${s}.json ${r.status}`); return r.json();
+  })));
+} catch (e) {
+  els.err.hidden = false;
+  els.err.textContent = 'Could not load vendors: ' + e.message;
+  els.statusLine.textContent = 'vendor data failed to load';
+}
+
+if (vendors.length && document.modelContext?.registerTool) {
+  const reg = (name, description, inputSchema, fn) =>
+    document.modelContext.registerTool({ name, description, inputSchema,
+      execute: async (input) => {
+        const out = fn(input || {});
+        log(name, input, out);
+        return { content: [{ type: 'text', text: JSON.stringify(out) }] };
+      }});
+
+  reg('plan_meal', 'Turn a plain description of an occasion into a need list: headcount, budget, dietary groups and venue constraints.',
+    { type:'object', properties:{ description:{type:'string'} }, required:['description'] },
+    ({ description }) => { els.q.value = description; const p = run(); return { occasion: p.occasion, demand: p.basket.demand }; });
+
+  reg('build_basket', 'Compose an order across vendors covering every dietary group and the total volume, with the arithmetic behind each quantity.',
+    { type:'object', properties:{ service_level:{type:'string', enum:['pickup','delivery','dropoff_setup']} } },
+    ({ service_level }) => { if (service_level) els.lvl.value = service_level; const p = run();
+      return { items: p.basket.items.map(i => ({ name:i.name, vendor:i.vendorName, price:i.price, oz:i.oz, tier:i.tier })),
+               subtotal: p.basket.subtotal, why: p.basket.why, split_reason: p.basket.splitReason }; });
+
+  reg('check_plan', 'Report what the current order does not cover: quantity, dietary coverage, jobs nobody owns, and timing that breaks a food-safety rule.',
+    { type:'object', properties:{} }, () => ({ findings: (current || run()).findings }));
+
+  reg('negotiate', 'Ask every vendor what they can do about a stated problem, and what it would cost.',
+    { type:'object', properties:{ constraint:{type:'string', enum:['timing','coverage','unclaimed','quantity']} }, required:['constraint'] },
+    ({ constraint }) => {
+      const options = [];
+      for (const v of vendors) for (const a of v.accommodations || []) if (a.for === constraint) options.push({ vendor: v.name, ...a });
+      return { constraint, options };
+    });
+
+  reg('share_plan', 'Return the job and owner table for this plan, including the jobs left to the host.',
+    { type:'object', properties:{} }, () => ({ rows: ownershipTable(current || run(), vendors) }));
+}
+
+if (vendors.length) run();
+</script>
+</body>
+</html>

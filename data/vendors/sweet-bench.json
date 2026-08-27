@@ -1,0 +1,29 @@
+{
+  "slug": "sweet-bench",
+  "name": "Sweet Bench Bakery",
+  "tier": "T1",
+  "kind": "bakery",
+  "blurb": "Sheet cakes, cookie trays and bars. Menu is published as structured markup; no live availability.",
+  "service_levels": ["pickup", "delivery"],
+  "lead_time_hours": 72,
+  "blackout_dates": [],
+  "menu": [
+    { "id": "sb-cookies", "name": "Cookie tray", "category": "dessert",
+      "claimed_serves": 24, "basis_mains": 1, "basis_stated": false, "portion_oz": 2,
+      "price": 54, "dietary": ["vegetarian"], "hot": false, "minimum": 1 },
+    { "id": "sb-bars", "name": "Brownie and blondie bars", "category": "dessert",
+      "claimed_serves": 20, "basis_mains": 1, "basis_stated": false, "portion_oz": 2,
+      "price": 48, "dietary": ["vegetarian"], "hot": false, "minimum": 1 },
+    { "id": "sb-gf-cake", "name": "Gluten free almond cake", "category": "dessert",
+      "claimed_serves": 12, "basis_mains": 1, "basis_stated": true, "portion_oz": 3,
+      "price": 46, "dietary": ["vegetarian", "gluten_free"], "hot": false, "minimum": 1 }
+  ],
+  "requirements": {
+    "pickup":   { "requires": ["transport", "serving_utensils", "plates"], "provides": ["food"] },
+    "delivery": { "requires": ["serving_utensils", "plates"], "provides": ["food", "transport"] }
+  },
+  "accommodations": [
+    { "for": "coverage", "description": "Swap cookie tray for the gluten free cake", "cost": -8, "conditions": "72h notice" },
+    { "for": "timing", "description": "Same day pickup window 3pm to 5pm", "cost": 0, "conditions": "Subject to bake schedule" }
+  ]
+}

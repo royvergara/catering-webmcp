@@ -1,0 +1,25 @@
+{
+  "slug": "masa-y-mas",
+  "name": "Masa y Más",
+  "tier": "T1",
+  "kind": "caterer",
+  "blurb": "Taco bars and sides. Structured menu published as schema.org, no live availability.",
+  "service_levels": ["pickup", "delivery"],
+  "lead_time_hours": 24,
+  "blackout_dates": ["2026-09-12"],
+  "menu": [
+    { "id": "mm-carnitas", "name": "Carnitas pan", "category": "main",
+      "claimed_serves": 15, "basis_mains": 1, "basis_stated": false, "portion_oz": 6,
+      "price": 120, "dietary": ["gluten_free"], "hot": true, "minimum": 1 },
+    { "id": "mm-rajas", "name": "Rajas con crema pan", "category": "main",
+      "claimed_serves": 15, "basis_mains": 1, "basis_stated": false, "portion_oz": 6,
+      "price": 96, "dietary": ["vegetarian"], "hot": true, "minimum": 1 }
+  ],
+  "requirements": {
+    "pickup":   { "requires": ["transport", "warming_trays", "fuel", "serving_utensils", "cleanup"], "provides": ["food"] },
+    "delivery": { "requires": ["warming_trays", "fuel", "serving_utensils", "cleanup"], "provides": ["food", "transport"] }
+  },
+  "accommodations": [
+    { "for": "coverage", "description": "Swap one carnitas pan for a second rajas pan", "cost": -24, "conditions": "48h notice" }
+  ]
+}

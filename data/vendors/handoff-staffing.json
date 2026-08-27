@@ -1,0 +1,27 @@
+{
+  "slug": "handoff-staffing",
+  "name": "Handoff Event Staffing",
+  "tier": "T0",
+  "kind": "staffing",
+  "blurb": "Servers and attendants by the hour. Two hour minimum.",
+  "service_levels": ["staffed"],
+  "lead_time_hours": 48,
+  "blackout_dates": [],
+  "menu": [
+    { "id": "hs-server", "name": "Server, per hour", "category": "labor",
+      "claimed_serves": 12, "basis_mains": 1, "basis_stated": true, "portion_oz": 0,
+      "price": 45, "dietary": [], "hot": false, "minimum": 2,
+      "provides_resource": "refills" },
+    { "id": "hs-captain", "name": "Lead attendant, per hour", "category": "labor",
+      "claimed_serves": 40, "basis_mains": 1, "basis_stated": true, "portion_oz": 0,
+      "price": 58, "dietary": [], "hot": false, "minimum": 2,
+      "provides_resource": "fuel_monitoring" }
+  ],
+  "requirements": {
+    "staffed": { "requires": ["parking", "access_30min_before"], "provides": ["refills", "cleanup", "fuel_monitoring", "setup"] }
+  },
+  "accommodations": [
+    { "for": "unclaimed", "resource": "cleanup", "description": "Add one hour of breakdown and cleanup", "cost": 45, "conditions": "Two hour minimum applies" },
+    { "for": "unclaimed", "resource": "refills", "description": "Two hours of one server covers setup and refills", "cost": 90, "conditions": "48h notice" }
+  ]
+}
