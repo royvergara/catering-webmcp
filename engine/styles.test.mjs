@@ -85,10 +85,11 @@ test('the guard would actually catch a stale stylesheet', () => {
 });
 
 test('the generated stylesheet carries the design tokens, not just stock utilities', () => {
-  // if the config were ignored these would silently fall back to nothing; each is
-  // written in the form the pages actually use
-  for (const token of ['text-ink-mute', 'bg-paper-card', 'border-rule', 'text-carbon',
-                       'rounded-chit', 'hover:shadow-chit', 'tracking-tightest', 'font-display']) {
+  // if the config were ignored these would silently fall back to nothing. One per
+  // category the config extends — colours, radius, shadow, family — and every one has
+  // to be a class the pages still use, because tailwind only generates what it finds.
+  for (const token of ['text-ink-mute', 'bg-paper-card', 'bg-paper-sunk', 'border-rule',
+                       'text-carbon', 'rounded-chit', 'hover:shadow-chit', 'font-display']) {
     assert.ok(tailwind.includes(selectorFor(token)), `${token} is missing from the stylesheet`);
   }
 });
