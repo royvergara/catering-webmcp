@@ -208,16 +208,26 @@ a{ color:var(--carbon); }
    its own containing block, so the wrapper would let the bar scroll away the moment
    its box left the viewport: take the wrapper out of the box tree so `sticky` is
    measured against the page. */
-#siteHeader{ display:contents; }
-.masthead{
+/* The masthead is injected by a module script, which is deferred — so the page is
+   laid out once without it and again with it, and every page's content was sitting
+   55px too high until the second layout. That is a jump on every load, and on a
+   phone (where the script, the fonts and the vendor JSON all land later) it is a
+   window in which the browser positions the viewport against a layout that is
+   about to change.
+   So the wrapper reserves the height before the header exists, and carries the
+   sticky itself: no `display: contents` to be honoured, and the second layout is
+   identical to the first. */
+#siteHeader{
   position:sticky; top:0; z-index:20;
+  /* border-box, so the rules have to be added back or the reserve is 3px short */
+  min-height:calc(3.25rem + 3px);     /* .masthead-inner, plus the 2px and 1px rules */
   background:var(--card);
   border-top:2px solid var(--carbon);
   border-bottom:1px solid var(--rule);
   transition:box-shadow .18s ease;
 }
-@media (prefers-reduced-motion:reduce){ .masthead{ transition:none; } }
-.masthead.lifted{ box-shadow:0 1px 0 var(--rule), 0 10px 20px -18px rgba(16,19,26,.5); }
+@media (prefers-reduced-motion:reduce){ #siteHeader{ transition:none; } }
+#siteHeader.lifted{ box-shadow:0 1px 0 var(--rule), 0 10px 20px -18px rgba(16,19,26,.5); }
 .masthead-inner{
   display:flex; align-items:center; gap:1rem;
   max-width:48rem; margin:0 auto; padding:0 1.25rem; height:3.25rem;

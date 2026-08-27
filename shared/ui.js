@@ -35,7 +35,7 @@ export function mountHeader(active) {
   // face, the protocol stamped in mono. On a phone the nav collapses, so the space
   // it leaves carries the name of the sheet you are on rather than going blank.
   el.innerHTML = `
-    <header class="masthead" id="masthead">
+    <header class="masthead">
       <div class="masthead-inner">
         <a href="/" class="mark" aria-label="Catering WebMCP, home">
           <span class="mark-name">CATERING</span><span class="mark-dot">·</span><span class="mark-code">WEBMCP</span>
@@ -54,7 +54,6 @@ export function mountHeader(active) {
       </div>
     </header>`;
 
-  const bar = document.getElementById('masthead');
   const btn = document.getElementById('navToggle');
   const panel = document.getElementById('navPanel');
 
@@ -67,8 +66,9 @@ export function mountHeader(active) {
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && !panel.hidden) { set(false); btn.focus(); } });
   window.addEventListener('resize', () => { if (window.innerWidth >= 640 && !panel.hidden) set(false); });
 
-  // Sit flush on the sheet until there is something underneath to lift off.
-  const lift = () => bar.classList.toggle('lifted', window.scrollY > 4);
+  // Sit flush on the sheet until there is something underneath to lift off. The
+  // shadow goes on the wrapper, which is the element that actually sticks.
+  const lift = () => el.classList.toggle('lifted', window.scrollY > 4);
   lift();
   window.addEventListener('scroll', lift, { passive: true });
 }

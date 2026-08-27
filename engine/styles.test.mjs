@@ -200,3 +200,18 @@ test('every page turns off scroll restoration before it parses', () => {
       `${page} does not set scrollRestoration inline in <head>`);
   }
 });
+
+test('the header reserves its space before the script that fills it runs', () => {
+  // Every page mounts the masthead into #siteHeader from a module script, and module
+  // scripts are deferred — so the page is laid out once without the header and again
+  // with it. Without a reserved height the content sits 55px too high in between,
+  // which is a jump on every load and, on a slow connection, a window in which the
+  // browser positions the viewport against a layout that is about to change.
+  const rule = components.match(/#siteHeader\s*\{([^}]*)\}/);
+  assert.ok(rule, 'ui.css no longer styles #siteHeader at all');
+  assert.match(rule[1], /min-height:/, '#siteHeader must hold the header\'s height in advance');
+  assert.match(rule[1], /position:\s*sticky/,
+    'the sticky belongs on the wrapper: on the inner header it depends on display:contents');
+  assert.doesNotMatch(rule[1], /display:\s*contents/,
+    'display:contents gives the wrapper no box, so it can reserve no height');
+});
