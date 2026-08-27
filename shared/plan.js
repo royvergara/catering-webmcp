@@ -3,6 +3,7 @@ import { deriveDemand, normalizeItem, runChecks } from '../engine/engine.js';
 import { deriveAssumptions, applyAssumptions, reviseAssumption, carryConfirmed } from '../engine/assumptions.js';
 import { diffFindings, summarizeDelta } from '../engine/replan.js';
 import { admitVendors } from '../engine/trust.js';
+import { describeOption, rankOptions, distinct, justifySplit } from '../engine/options.js';
 
 const WORDS = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
   eleven:11, twelve:12, fifteen:15, twenty:20, thirty:30, forty:40, fifty:50, sixty:60, hundred:100 };
@@ -58,9 +59,15 @@ export function parseOccasion(text) {
 }
 
 // Choose items to satisfy demand and per-group coverage, cheapest first, fewest vendors.
-export function composeBasket(occasion, vendors, { maxVendors = 2 } = {}) {
+//
+// `only` restricts the pool to named vendors, so a single-vendor basket can be composed
+// and compared honestly against a split. `prefer` decides what "best" means when topping
+// up volume: the most food per dollar, or the smallest line item. Different answers to
+// those two questions are what makes one option genuinely different from another.
+export function composeBasket(occasion, vendors, { only = null, prefer = 'value' } = {}) {
   const demand = deriveDemand(occasion);
-  const caterers = vendors.filter(v => v.kind === 'caterer' || v.kind === 'bakery');
+  let caterers = vendors.filter(v => v.kind === 'caterer' || v.kind === 'bakery');
+  if (only) caterers = caterers.filter(v => only.includes(v.slug));
 
   const pool = [];
   for (const v of caterers) {
@@ -79,13 +86,14 @@ export function composeBasket(occasion, vendors, { maxVendors = 2 } = {}) {
   const need = { ...(occasion.dietary || {}) };
   const countOf = id => chosen.filter(c => c.id === id).length;
   const MAX_SAME = 2; // variety beats volume: four good options beat two giant trays
+  const best = (a, b) => (prefer === 'price' ? a.price - b.price : b.ozPerDollar - a.ozPerDollar);
 
   // 1. cover each dietary group first, cheapest qualifying item per group
   for (const [group, count] of Object.entries(need)) {
     let covered = 0;
     const candidates = pool
       .filter(i => (i.dietary || []).includes(group) && i.category === 'main')
-      .sort((a, b) => b.ozPerDollar - a.ozPerDollar);
+      .sort(best);
     for (const c of candidates) {
       while (covered < count && countOf(c.id) < MAX_SAME) {
         chosen.push({ ...c });
@@ -98,7 +106,7 @@ export function composeBasket(occasion, vendors, { maxVendors = 2 } = {}) {
 
   // 2. top up total main volume, best value first
   const totalOz = () => chosen.filter(i => i.category === 'main').reduce((n, i) => n + i.oz, 0);
-  const mains = pool.filter(i => i.category === 'main').sort((a, b) => b.ozPerDollar - a.ozPerDollar);
+  const mains = pool.filter(i => i.category === 'main').sort(best);
   let guard = 0;
   while (totalOz() < demand.proteinOz && guard++ < 20) {
     const pick = mains.find(m => countOf(m.id) < MAX_SAME);
@@ -110,12 +118,22 @@ export function composeBasket(occasion, vendors, { maxVendors = 2 } = {}) {
   const subtotal = chosen.reduce((n, i) => n + i.price, 0);
   const vendorsUsed = [...new Set(chosen.map(i => i.vendor))];
 
+  // Which dietary groups this basket leaves short, per group, as counts not vibes.
+  const uncovered = [];
+  for (const [group, count] of Object.entries(occasion.dietary || {})) {
+    const served = chosen.filter(i => (i.dietary || []).includes(group))
+      .reduce((n, i) => n + i.claimed_serves, 0);
+    if (served < count) uncovered.push({ group, needed: count, served, short: count - served });
+  }
+
   return {
     items: chosen,
     why,
     subtotal,
     vendorsUsed,
     demand,
+    uncovered,
+    shortOz: Math.max(0, demand.proteinOz - chosen.filter(i => i.category === 'main').reduce((n, i) => n + i.oz, 0)),
     splitReason: vendorsUsed.length > 1
       ? 'coverage: no single vendor covered every dietary group within budget'
       : null
@@ -163,7 +181,7 @@ export function assemblePlan(occasion, vendors, serviceLevel = 'pickup', opts = 
   const useOccasion = applied.occasion;
   const useVendors = applied.vendors;
 
-  const basket = composeBasket(useOccasion, useVendors);
+  const basket = composeBasket(useOccasion, useVendors, opts.compose || {});
   basket.pickups = planPickups(basket, useOccasion);
 
   const requirementsByVendor = {};
@@ -182,6 +200,7 @@ export function assemblePlan(occasion, vendors, serviceLevel = 'pickup', opts = 
     occasion: useOccasion,
     baseOccasion: opts.baseOccasion || occasion,  // the raw parse, so a re-run starts clean
     basket, requirementsByVendor, findings, serviceLevel, assumptions,
+    compose: opts.compose || {},   // the option you picked survives a correction
     trust, ranking: rankVendors(useVendors, useOccasion)
   };
 }
@@ -214,11 +233,64 @@ export function rankVendors(vendors, occasion) {
   }));
 }
 
+// Two or three real orders with the tradeoffs stated, rather than one answer presented
+// as the answer. Each is a full plan, so each carries its own findings and ownership.
+//
+// The candidates are not cosmetic variants: one vendor at a time says what you give up
+// for simplicity, and value-first against price-first say what you give up for money.
+export function buildOptions(occasion, vendors, serviceLevel = 'pickup', opts = {}) {
+  const caterers = vendors.filter(v => v.kind === 'caterer' || v.kind === 'bakery');
+  const strategies = [
+    { id: 'covers', compose: {} },
+    { id: 'thrift', compose: { prefer: 'price' } },
+    ...caterers.map(v => ({ id: `alone-${v.slug}`, compose: { only: [v.slug] } }))
+  ];
+
+  const built = [];
+  for (const s of strategies) {
+    const plan = assemblePlan(occasion, vendors, serviceLevel, { ...opts, compose: s.compose });
+    const b = plan.basket;
+    if (!b.items.length) continue;                       // a bakery alone cannot feed anyone
+    built.push({
+      id: s.id,
+      plan,
+      itemIds: b.items.map(i => i.id),
+      subtotal: b.subtotal,
+      vendorCount: b.vendorsUsed.length,
+      itemCount: b.items.length,
+      uncovered: b.uncovered,
+      shortOz: b.shortOz,
+      collections: (b.pickups || []).filter(p => p.selfCollect).length,
+      blockers: plan.findings.filter(f => f.severity === 'blocker').length,
+      overBudget: Math.max(0, b.subtotal - (occasion.budget || 0))
+    });
+  }
+
+  const pool = rankOptions(distinct(built));
+  if (!pool.length) return [];
+
+  // Show at most three, and only ones that differ on an axis a person cares about:
+  // the best overall, the simplest, and the cheapest.
+  const picked = [pool[0]];
+  const add = o => { if (o && !picked.includes(o)) picked.push(o); };
+  add([...pool].sort((a, b) => a.vendorCount - b.vendorCount || a.subtotal - b.subtotal)[0]);
+  add([...pool].filter(o => !o.uncovered.length).sort((a, b) => a.subtotal - b.subtotal)[0]);
+  add([...pool].sort((a, b) => a.subtotal - b.subtotal)[0]);
+
+  const chosen = picked.slice(0, 3);
+  return chosen.map((o, i) => ({
+    ...describeOption(o, chosen),
+    rank: i + 1,
+    recommended: i === 0,
+    split: justifySplit(o, pool)
+  }));
+}
+
 // Correct one assumption and rebuild everything that depended on it.
 export function revisePlan(plan, vendors, id, value) {
   const next = reviseAssumption(plan.assumptions, id, value);
   return assemblePlan(plan.baseOccasion || plan.occasion, vendors, plan.serviceLevel,
-    { assumptions: next, baseOccasion: plan.baseOccasion || plan.occasion });
+    { assumptions: next, baseOccasion: plan.baseOccasion || plan.occasion, compose: plan.compose });
 }
 
 // Change one input and report what moved. The plan is rebuilt in full; what comes
@@ -229,12 +301,12 @@ export function replan(plan, vendors, change) {
 
   if (change.serviceLevel) {
     after = assemblePlan(base, vendors, change.serviceLevel,
-      { assumptions: plan.assumptions, baseOccasion: base });
+      { assumptions: plan.assumptions, baseOccasion: base, compose: plan.compose });
     what = `Service level ${plan.serviceLevel} -> ${change.serviceLevel}.`;
   } else if (change.description !== undefined) {
     const reparsed = parseOccasion(change.description);
     after = assemblePlan(reparsed, vendors, plan.serviceLevel,
-      { assumptions: plan.assumptions, baseOccasion: reparsed });
+      { assumptions: plan.assumptions, baseOccasion: reparsed, compose: plan.compose });
     what = `Occasion re-read from a new description.`;
   } else {
     const was = plan.assumptions.find(a => a.id === change.assumption);

@@ -48,6 +48,18 @@
     <div class="chit-body" id="naive"></div>
   </section>
 
+  <!-- options: the agent gathers and reasons, the person decides -->
+  <section class="chit mb-4" id="optionsCard" hidden>
+    <div class="chit-head"><span class="chit-title">Two or three ways to do this</span><span class="chit-note" id="optionsNote"></span></div>
+    <div class="chit-body">
+      <p class="m-0 mb-3 text-[14px] text-ink-soft">
+        Every one of these trades money against effort against risk. Pick the one whose
+        friction you will actually tolerate — the plan below follows your choice.
+      </p>
+      <div id="options"></div>
+    </div>
+  </section>
+
   <!-- composed order -->
   <section class="chit mb-4" id="basketCard" hidden>
     <div class="chit-head"><span class="chit-title">The order</span><span class="chit-note" id="basketNote"></span></div>
@@ -115,7 +127,7 @@ window.addEventListener('unhandledrejection', e => {
 </script>
 
 <script type="module">
-import { parseOccasion, assemblePlan, revisePlan, replan, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
+import { parseOccasion, assemblePlan, revisePlan, replan, buildOptions, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
 import { runChecks } from '/engine/engine.js';
 import { CHECKS as CHECK_LABELS } from '/engine/replan.js';
 import { mountHeader, badge, tierBadge, money, label, esc } from '/shared/ui.js';
@@ -128,6 +140,7 @@ const els = {
   q: $('q'), lvl: $('lvl'), go: $('go'), statusLine: $('statusLine'), err: $('err'),
   naiveCard: $('naiveCard'), naive: $('naive'),
   deltaCard: $('deltaCard'), delta: $('delta'), deltaNote: $('deltaNote'),
+  optionsCard: $('optionsCard'), options: $('options'), optionsNote: $('optionsNote'),
   basketCard: $('basketCard'), basket: $('basket'), basketNote: $('basketNote'), math: $('math'),
   assumeCard: $('assumeCard'), assumptions: $('assumptions'), assumeNote: $('assumeNote'),
   findCard: $('findCard'), findings: $('findings'),
@@ -138,6 +151,8 @@ const els = {
 const SLUGS = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','prime-platters','loop-rentals','handoff-staffing'];
 let vendors = [];
 let current = null;
+let options = [];
+let chosenId = null;
 const calls = [];
 
 function log(tool, input, output) {
@@ -147,7 +162,7 @@ function log(tool, input, output) {
 
 function render(plan) {
   current = plan;
-  for (const c of ['naiveCard','basketCard','assumeCard','findCard','ownCard','trustCard']) { els[c].hidden = false; els[c].classList.add('rise'); }
+  for (const c of ['naiveCard','optionsCard','basketCard','assumeCard','findCard','ownCard','trustCard']) { els[c].hidden = false; els[c].classList.add('rise'); }
 
   // baseline
   const nb = naiveBasket(plan.occasion, vendors);
@@ -183,6 +198,7 @@ function render(plan) {
     ...(firstMain ? explainQuantity(firstMain, plan.occasion, plan.basket.demand) : [])].join('\n');
 
   renderAssumptions(plan);
+  renderOptions();
   renderTrust(plan);
 
   // findings
@@ -212,6 +228,38 @@ function render(plan) {
   els.findings.querySelectorAll('.neg').forEach(b => {
     b.onclick = () => negotiate(b.dataset.c, b.dataset.i);
   });
+}
+
+function renderOptions() {
+  els.optionsNote.textContent = options.length
+    ? `${options.length} on the table` : 'no options';
+  els.options.innerHTML = options.map(o => `
+    <button data-opt="${esc(o.id)}" aria-pressed="${o.id === chosenId}"
+            class="w-full text-left py-3 px-3 mb-2 rounded-chit border ${
+              o.id === chosenId ? 'border-carbon bg-carbon-soft' : 'border-rule bg-paper-card hover:border-rule-strong'}">
+      <div class="flex flex-wrap items-baseline gap-2">
+        <span class="font-semibold text-[15px]">${esc(o.summary)}</span>
+        ${o.recommended ? badge('ok', 'recommended') : ''}
+        ${o.id === chosenId ? badge('tier', 'chosen') : ''}
+      </div>
+      ${o.costs.length ? `<p class="m-0 mt-1 text-[13px] text-ink-mute">${o.costs.map(esc).join(' · ')}</p>` : ''}
+      ${o.split ? `<p class="m-0 mt-1 text-[13px] ${o.split.reason ? 'text-ink-mute' : 'text-short'}">${
+        o.split.reason ? `Split justified by ${esc(o.split.reason)}: ${esc(o.split.says)}.`
+                       : `${esc(o.split.says)}.`}</p>` : ''}
+    </button>`).join('');
+
+  els.options.querySelectorAll('[data-opt]').forEach(b => {
+    b.addEventListener('click', () => choose(b.dataset.opt));
+  });
+}
+
+function choose(id) {
+  const o = options.find(x => x.id === id);
+  if (!o || id === chosenId) return;
+  chosenId = id;
+  log('choose_option', { option: id }, { summary: o.summary, subtotal: o.subtotal });
+  render(o.plan);
+  status(o.plan);
 }
 
 function renderTrust(plan) {
@@ -296,6 +344,12 @@ function applyChange(change) {
   try {
     els.err.hidden = true;
     const { plan, delta } = replan(current, vendors, change);
+    // the other options moved too; rebuild them, keeping the one you chose
+    options = buildOptions(plan.baseOccasion || plan.occasion, vendors, plan.serviceLevel,
+                           { assumptions: plan.assumptions });
+    if (!options.some(o => o.id === chosenId)) {
+      chosenId = (options.find(o => o.recommended) || {}).id ?? null;
+    }
     log('replan', change, { summary: delta.lines });
     render(plan);
     renderDelta(delta);
@@ -363,9 +417,14 @@ function run() {
   try {
     const occasion = parseOccasion(els.q.value);
     // anything already confirmed survives a re-plan
-    const plan = assemblePlan(occasion, vendors, els.lvl.value, { assumptions: current?.assumptions || [] });
+    const carried = { assumptions: current?.assumptions || [] };
+    options = buildOptions(occasion, vendors, els.lvl.value, carried);
+    const top = options.find(o => o.recommended);
+    chosenId = top ? top.id : null;
+    const plan = top ? top.plan : assemblePlan(occasion, vendors, els.lvl.value, carried);
     log('plan_meal', { description: els.q.value, service_level: els.lvl.value },
-        { headcount: occasion.headcount, dietary: occasion.dietary, findings: plan.findings.length });
+        { headcount: occasion.headcount, dietary: occasion.dietary,
+          options: options.map(o => o.summary), findings: plan.findings.length });
     render(plan);
     els.deltaCard.hidden = true;   // a first plan has nothing to compare against
     status(plan);
@@ -408,6 +467,33 @@ if (vendors.length && document.modelContext?.registerTool) {
     ({ service_level }) => { if (service_level) els.lvl.value = service_level; const p = run();
       return { items: p.basket.items.map(i => ({ name:i.name, vendor:i.vendorName, price:i.price, oz:i.oz, tier:i.tier })),
                subtotal: p.basket.subtotal, why: p.basket.why, split_reason: p.basket.splitReason }; });
+
+  reg('build_options', 'Two or three real orders for this occasion, each with its tradeoffs stated: what it covers, what it costs, what it leaves you doing, and why any split across vendors is justified. Does not choose — returns the choice.',
+    { type:'object', properties:{ service_level:{type:'string', enum:['pickup','delivery','dropoff_setup']} } },
+    ({ service_level }) => {
+      if (service_level) els.lvl.value = service_level;
+      run();
+      return {
+        options: options.map(o => ({
+          id: o.id, summary: o.summary, recommended: o.recommended,
+          subtotal: o.subtotal, vendors: o.vendorCount, items: o.itemCount,
+          virtues: o.virtues, costs: o.costs,
+          uncovered: o.uncovered, split: o.split
+        })),
+        chosen: chosenId,
+        basis: 'cover the people, then clear the blockers, then fewest vendors, then cost'
+      };
+    });
+
+  reg('choose_option', 'Pick one of the options from build_options. Everything below it — the order, the findings, and who is doing what — follows the choice.',
+    { type:'object', properties:{ option:{type:'string'} }, required:['option'] },
+    ({ option }) => {
+      if (!options.length) run();
+      const o = options.find(x => x.id === option);
+      if (!o) return { error: `no such option: ${option}`, available: options.map(x => x.id) };
+      choose(o.id);
+      return { chosen: o.id, summary: o.summary, subtotal: o.subtotal, findings: o.plan.findings };
+    });
 
   reg('check_plan', 'Report what the current order does not cover: quantity, dietary coverage, jobs nobody owns, and timing that breaks a food-safety rule.',
     { type:'object', properties:{} }, () => ({ findings: (current || run()).findings }));
