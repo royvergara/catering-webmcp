@@ -224,7 +224,7 @@ function render(plan) {
             <span class="font-mono text-[11px] uppercase tracking-[.1em] text-ink-mute">${f.check}</span>
           </div>
           <p class="m-0 text-[15px]">${esc(f.message)}</p>
-          <button data-c="${f.check}" data-i="${idx}" class="btn btn-quiet neg mt-2">What can be done</button>
+          <button data-c="${f.check}" data-i="${idx}" class="btn btn-quiet js-negotiate mt-2">What can be done</button>
           <div id="opt-${idx}"></div>
         </div>`).join('')
     : `<p class="m-0 text-[15px] text-covered">Nothing outstanding. Everyone is covered and every job has an owner.</p>`;
@@ -242,7 +242,7 @@ function render(plan) {
       <span class="row-num ${r.who === 'You' ? 'font-semibold' : 'text-ink-mute'}">${esc(r.who)}</span>
     </div>`).join('');
 
-  els.findings.querySelectorAll('.neg').forEach(b => {
+  els.findings.querySelectorAll('.js-negotiate').forEach(b => {
     b.onclick = () => negotiate(b.dataset.c, b.dataset.i);
   });
 }
