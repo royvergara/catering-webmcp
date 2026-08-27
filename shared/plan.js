@@ -4,6 +4,7 @@ import { deriveAssumptions, applyAssumptions, reviseAssumption, carryConfirmed }
 import { diffFindings, summarizeDelta } from '../engine/replan.js';
 import { admitVendors } from '../engine/trust.js';
 import { describeOption, rankOptions, distinct, justifySplit } from '../engine/options.js';
+import { timeline, addHostHoldingJob } from '../engine/schedule.js';
 
 const WORDS = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
   eleven:11, twelve:12, fifteen:15, twenty:20, thirty:30, forty:40, fifty:50, sixty:60, hundred:100 };
@@ -333,8 +334,17 @@ export function ownershipTable(plan, vendors) {
     for (const p of r.provides || []) rows.push({ job: p, who: v.name, source: 'vendor' });
     for (const q of r.requires || []) rows.push({ job: q, who: 'You', source: 'left to you' });
   }
+
   const seen = new Set();
-  return rows.filter(r => { const k = r.job + r.who; if (seen.has(k)) return false; seen.add(k); return true; });
+  const unique = rows.filter(r => { const k = r.job + r.who; if (seen.has(k)) return false; seen.add(k); return true; });
+
+  const withHolding = addHostHoldingJob(unique, {
+    serviceLevel: plan.serviceLevel,
+    hasHotFood: (plan.basket?.items || []).some(i => i.hot)
+  });
+
+  // job, who, and when: the third column is the one a receipt never shows
+  return timeline(withHolding, plan.occasion || {});
 }
 
 

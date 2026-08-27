@@ -9,7 +9,8 @@ vendors, shows the arithmetic, and tells you what the order leaves you holding.
 ## The three things it tells you that nothing else does
 
 1. **What to order and how much**, with the math shown — including normalizing "serves 20,"
-   which means something different at every vendor.
+   which means something different at every vendor. You get two or three orders with the
+   tradeoffs stated, not one answer presented as the answer.
 2. **What the order leaves you doing** — service level decides whether you or the caterer
    holds temperature, refills trays, and cleans up.
 3. **What will not work** — coverage per dietary group, and timing against safe holding.
@@ -27,7 +28,7 @@ That one addition turns separate purchases into a plan.
 ## Testing
 
 ```
-npm test          # 113 tests: engine checks, corrections, replanning, trust, tool contracts.
+npm test          # 130 tests: engine checks, corrections, replanning, trust, tool contracts.
                   # No browser needed.
 npm run dev       # serve at :8080
 ```
@@ -79,7 +80,8 @@ engine/replan.js    change an input, report only what broke
 engine/trust.js     vendor text is data: field allowlist + injection quarantine
 engine/options.js   two or three orders, ranked and described by tradeoff
 engine/adapters.js  read a business at T0-T4; what each tier can and cannot answer
-engine/*.test.mjs   113 unit tests
+engine/schedule.js  when each job has to happen, in the event's own clock
+engine/*.test.mjs   130 unit tests
 data/vendors/       vendor definitions, one of them deliberately hostile
 data/sources/       the same business published as markup, a table and a PDF
 gradient.html       the source gradient, side by side

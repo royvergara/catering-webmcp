@@ -6,7 +6,7 @@ Deploy the folder as-is to Netlify, Vercel, or Cloudflare Pages.
 ## Run locally
 ```
 npm run dev     # http://localhost:8080
-npm test        # engine unit tests (113, all passing)
+npm test        # engine unit tests (130, all passing)
 ```
 
 ## What exists now
@@ -21,7 +21,8 @@ npm test        # engine unit tests (113, all passing)
 | `engine/options.js` | done — two or three orders, ranked and described by tradeoff |
 | `engine/adapters.js` | done — T0-T4 readers, one record shape, capability matrix |
 | `gradient.html` | done — the same question at four tiers, side by side |
-| `engine/*.test.mjs` | done — 113 tests passing |
+| `engine/schedule.js` | done — the job/when/who table, timed off the event's own clock |
+| `engine/*.test.mjs` | done — 130 tests passing |
 | `data/vendors/*.json` | 7 written, one of them deliberately hostile |
 | `vendor.html` | done — one template, driven by `?v=<slug>`, registers 5 tools |
 | `index.html` | done — hub |
@@ -65,7 +66,7 @@ The organizer surface. Registers its own tools so the URL works standalone:
 - `revise(assumption, value)` → correction path; recompute downstream; mark as user-confirmed
 - `replan(...)` → change one input, return only what broke
 - `explain_ranking()` → the deterministic ranking, and any instruction a vendor tried to give the agent
-- `share_plan()` → the job/when/who table
+- `share_plan()` → the job/when/who table, in the order the day runs
 
 UI requirements:
 - Every tool call is visible on screen as it happens ("asking Green Fork…"). If it is
@@ -105,7 +106,7 @@ Node import the same definitions, so almost everything is testable from the term
 
 **Three levels, cheapest first:**
 
-1. `npm test` — 113 tests. Engine checks, corrections, replanning and the trust boundary, plus
+1. `npm test` — 130 tests. Engine checks, corrections, replanning and the trust boundary, plus
    tool contracts: every tool has a snake_case name, a real description, an object schema,
    JSON-serialisable output, service-level-dependent requirements, blackout dates honoured,
    holds never binding. Run this on every change.
