@@ -145,3 +145,36 @@ test('admitting vendors never mutates the data it was given', () => {
   admitVendors(vendors);
   assert.equal(JSON.stringify(vendors), snapshot);
 });
+
+test('vendor text is escaped before it reaches the page', async () => {
+  const { esc } = await import('../shared/ui.js');
+  const payload = '<img src=x onerror="alert(1)">';
+  const out = esc(payload);
+  assert.ok(!out.includes('<'), 'no tag can survive');
+  assert.ok(!out.includes('"'), 'no attribute can be closed');
+  assert.equal(esc("Masa y Más"), 'Masa y Más', 'ordinary names pass through unharmed');
+  assert.equal(esc(undefined), '', 'a missing value renders as nothing, not "undefined"');
+});
+
+test('every page that renders vendor text escapes it', () => {
+  // A regression guard: this repo ships hostile vendor data on purpose, so any
+  // interpolation of vendor-controlled text into innerHTML must go through esc().
+  // Matches property reads (`i.name`, `f.message`) rather than the bare words, so
+  // that CSS classes and string literals containing them are not flagged.
+  const RISKY = /\$\{(?![^}]*esc\()[^}]*\.\s*(?:name|blurb|message|description|basis|conditions|why|vendorName|change)\b[^}]*\}/;
+
+  assert.ok(RISKY.test('`<p>${v.blurb}</p>`'), 'the guard still recognises an unescaped read');
+  assert.ok(!RISKY.test('`<p>${esc(v.blurb)}</p>`'), 'and accepts an escaped one');
+
+  const risky = [];
+  for (const file of ['plan.html', 'index.html', 'vendor.html']) {
+    for (const [i, line] of readFileSync(file, 'utf8').split('\n').entries()) {
+      // textContent and document.title are text sinks, not markup: escaping there
+      // would render "Smith &amp; Co" to the user.
+      if (/document\.title|\.textContent\s*=/.test(line)) continue;
+      const m = line.match(RISKY);
+      if (m) risky.push(`${file}:${i + 1}  ${m[0]}`);
+    }
+  }
+  assert.deepEqual(risky, [], 'unescaped vendor text reaching innerHTML');
+});

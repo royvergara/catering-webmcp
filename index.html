@@ -76,19 +76,19 @@
 </main>
 
 <script type="module">
-import { mountHeader, tierBadge } from '/shared/ui.js';
+import { mountHeader, tierBadge, esc } from '/shared/ui.js';
 mountHeader('Overview');
 
 const slugs = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','prime-platters','loop-rentals','handoff-staffing'];
 const vs = await Promise.all(slugs.map(s => fetch(`/data/vendors/${s}.json`).then(r => r.json())));
 document.getElementById('vendors').innerHTML = vs.map(v => `
-  <a class="chit no-underline text-ink block hover:shadow-chit" href="/vendor.html?v=${v.slug}">
+  <a class="chit no-underline text-ink block hover:shadow-chit" href="/vendor.html?v=${encodeURIComponent(v.slug)}">
     <div class="chit-body">
       <div class="flex items-center gap-2 mb-1">
-        <span class="font-display font-bold">${v.name}</span>
+        <span class="font-display font-bold">${esc(v.name)}</span>
         ${tierBadge(v.tier)}
       </div>
-      <p class="text-[14px] text-ink-soft m-0">${v.blurb}</p>
+      <p class="text-[14px] text-ink-soft m-0">${esc(v.blurb)}</p>
     </div>
   </a>`).join('');
 </script>

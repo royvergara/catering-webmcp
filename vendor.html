@@ -44,7 +44,7 @@
 
 <script type="module">
 import { buildVendorTools } from '/shared/vendor-tools.js';
-import { mountHeader, tierBadge, money, label } from '/shared/ui.js';
+import { mountHeader, tierBadge, money, label, esc } from '/shared/ui.js';
 
 mountHeader('');
 const $ = id => document.getElementById(id);
@@ -59,26 +59,26 @@ $('menuNote').textContent = `${v.menu.length} items · ${v.lead_time_hours}h lea
 
 $('menu').innerHTML = v.menu.map(i => `
   <div class="row">
-    <span class="row-name">${i.name}
+    <span class="row-name">${esc(i.name)}
       <span class="text-ink-mute">serves ${i.claimed_serves}</span>
       ${i.basis_stated
         ? '<span class="badge badge-ok">basis stated</span>'
         : '<span class="badge badge-risk">basis not stated</span>'}
-      ${(i.dietary || []).map(d => `<span class="badge badge-tier">${label(d)}</span>`).join('')}
+      ${(i.dietary || []).map(d => `<span class="badge badge-tier">${esc(label(d))}</span>`).join('')}
     </span>
     <span class="row-num">${money(i.price)}</span>
   </div>`).join('');
 
 $('reqs').innerHTML = Object.entries(v.requirements).map(([lvl, r]) => `
   <div class="border-l-2 border-carbon pl-3">
-    <div class="font-mono text-[11px] uppercase tracking-[.12em] text-carbon mb-2">${label(lvl)}</div>
+    <div class="font-mono text-[11px] uppercase tracking-[.12em] text-carbon mb-2">${esc(label(lvl))}</div>
     <div class="text-[14px] mb-1">
       <span class="text-ink-mute">they bring</span>
-      ${(r.provides || []).map(p => `<span class="badge badge-ok ml-1">${label(p)}</span>`).join('') || '—'}
+      ${(r.provides || []).map(p => `<span class="badge badge-ok ml-1">${esc(label(p))}</span>`).join('') || '—'}
     </div>
     <div class="text-[14px]">
       <span class="text-ink-mute">you supply</span>
-      ${(r.requires || []).map(q => `<span class="badge ml-1" style="background:var(--tape-soft);color:var(--watch);border-color:#EFDDB4">${label(q)}</span>`).join('') || '—'}
+      ${(r.requires || []).map(q => `<span class="badge ml-1" style="background:var(--tape-soft);color:var(--watch);border-color:#EFDDB4">${esc(label(q))}</span>`).join('') || '—'}
     </div>
   </div>`).join('');
 

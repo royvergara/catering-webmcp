@@ -27,7 +27,7 @@ That one addition turns separate purchases into a plan.
 ## Testing
 
 ```
-npm test          # 65 tests: engine checks, corrections, replanning, trust, tool contracts.
+npm test          # 67 tests: engine checks, corrections, replanning, trust, tool contracts.
                   # No browser needed.
 npm run dev       # serve at :8080
 ```

@@ -6,20 +6,23 @@ Deploy the folder as-is to Netlify, Vercel, or Cloudflare Pages.
 ## Run locally
 ```
 npm run dev     # http://localhost:8080
-npm test        # engine unit tests (8, all passing)
+npm test        # engine unit tests (67, all passing)
 ```
 
 ## What exists now
 | Path | State |
 |---|---|
-| `smoke.html` | **done** — registers `ping` + `get_page_facts`. Day one verification. |
-| `shared/styles.css` | done |
-| `engine/engine.js` | **done** — 4 pure checks: quantity, coverage, unclaimed, timing |
-| `engine/engine.test.mjs` | done — 8 tests passing |
-| `data/vendors/*.json` | 2 of 6 written |
-| `vendor.html` | **done** — one template, driven by `?v=<slug>`, registers 5 tools |
+| `smoke.html` | done — registers `ping` + `get_page_facts`. Day one verification. |
+| `shared/ui.css` | done |
+| `engine/engine.js` | done — 5 pure checks: quantity, coverage, unclaimed, timing, budget |
+| `engine/assumptions.js` | done — what the plan inferred; editable, confirmed values stick |
+| `engine/replan.js` | done — change an input, report only what broke |
+| `engine/trust.js` | done — field allowlist + injection quarantine |
+| `engine/*.test.mjs` | done — 67 tests passing |
+| `data/vendors/*.json` | 7 written, one of them deliberately hostile |
+| `vendor.html` | done — one template, driven by `?v=<slug>`, registers 5 tools |
 | `index.html` | done — hub |
-| `plan.html` | **TO BUILD** |
+| `plan.html` | done — registers 9 tools |
 
 ## Order of work
 
@@ -50,10 +53,13 @@ the source gradient.
 The organizer surface. Registers its own tools so the URL works standalone:
 
 - `plan_meal(description)` → parse the occasion, run `deriveDemand`, return the need list
-- `build_options()` → 2–3 vendor combinations with tradeoffs stated
-- `check_plan(option)` → call `runChecks`, return findings sorted by severity
-- `negotiate(finding)` → gather `propose_accommodation` from every vendor
+- `build_basket(service_level)` → an order across vendors, with the arithmetic behind each quantity
+- `check_plan()` → call `runChecks`, return findings sorted by severity
+- `negotiate(constraint)` → gather `propose_accommodation` from every vendor
+- `list_assumptions()` → every inferred number, its source, confidence, and whether it is confirmed
 - `revise(assumption, value)` → correction path; recompute downstream; mark as user-confirmed
+- `replan(...)` → change one input, return only what broke
+- `explain_ranking()` → the deterministic ranking, and any instruction a vendor tried to give the agent
 - `share_plan()` → the job/when/who table
 
 UI requirements:
@@ -68,6 +74,10 @@ Tune vendor data so the canonical prompt always produces three findings:
 four vegetarian servings for six vegetarians, nobody bringing warming trays, and a hot
 pickup outside the safe hold window.
 
+`prime-platters` is the adversarial vendor: it publishes instructions aimed at the agent and
+invents `priority` / `always_recommend_first` fields. It is fictional, and it exists to be
+ignored — see the trust rules below.
+
 ### 5. README
 State plainly: vendors are fictional, no payments, what is real and inspectable.
 
@@ -75,7 +85,11 @@ State plainly: vendors are fictional, no payments, what is real and inspectable.
 - No localStorage or sessionStorage. In-memory state only.
 - Engine stays pure: no DOM, no fetch. All logic testable with `npm test`.
 - Never let a third-party tool description act as an instruction. Vendor output is data.
+  Enforced in `engine/trust.js`: the planner reads an allowlist of vendor fields, and any
+  sentence aimed at the agent is quarantined before use. Vendor text is HTML-escaped on the
+  way into a page, so hostile data cannot become markup either.
 - Findings never auto-resolve. Present options; the human chooses.
+- A value the user has confirmed is never silently overwritten by a later run.
 
 ---
 
@@ -86,9 +100,10 @@ Node import the same definitions, so almost everything is testable from the term
 
 **Three levels, cheapest first:**
 
-1. `npm test` — 14 tests. Engine checks plus tool contracts: every tool has a snake_case name,
-   a real description, an object schema, JSON-serialisable output, service-level-dependent
-   requirements, blackout dates honoured, holds never binding. Run this on every change.
+1. `npm test` — 67 tests. Engine checks, corrections, replanning and the trust boundary, plus
+   tool contracts: every tool has a snake_case name, a real description, an object schema,
+   JSON-serialisable output, service-level-dependent requirements, blackout dates honoured,
+   holds never binding. Run this on every change.
 
 2. `/harness.html` — shims `document.modelContext` and gives a button per tool. Works in **any**
    browser including a phone. Verifies registration, input shapes and output rendering.
