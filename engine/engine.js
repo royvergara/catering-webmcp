@@ -125,13 +125,25 @@ export function checkTiming(basket, occasion) {
   return out;
 }
 
+// The budget is stated up front and then quietly exceeded. Say so.
+export function checkBudget(basket, occasion) {
+  if (!occasion.budget || basket.subtotal === undefined) return [];
+  const over = basket.subtotal - occasion.budget;
+  if (over <= 0) return [];
+  return [{
+    check: 'budget', severity: 'risk', over, budget: occasion.budget, spent: basket.subtotal,
+    message: `$${over} over the $${occasion.budget} you set.`
+  }];
+}
+
 export function runChecks({ basket, occasion, requirementsByVendor = {} }) {
   const demand = deriveDemand(occasion);
   const findings = [
     ...checkQuantity(basket, demand),
     ...checkCoverage(basket, occasion),
     ...checkUnclaimed(basket, requirementsByVendor, occasion),
-    ...checkTiming(basket, occasion)
+    ...checkTiming(basket, occasion),
+    ...checkBudget(basket, occasion)
   ];
   const rank = { blocker: 0, risk: 1, note: 2 };
   findings.sort((a, b) => rank[a.severity] - rank[b.severity]);

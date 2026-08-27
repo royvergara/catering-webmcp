@@ -1,6 +1,7 @@
 // Pure planning logic. No DOM, no fetch. Composes a basket and explains the arithmetic.
 import { deriveDemand, normalizeItem, runChecks } from '../engine/engine.js';
 import { deriveAssumptions, applyAssumptions, reviseAssumption, carryConfirmed } from '../engine/assumptions.js';
+import { diffFindings, summarizeDelta } from '../engine/replan.js';
 
 const WORDS = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
   eleven:11, twelve:12, fifteen:15, twenty:20, thirty:30, forty:40, fifty:50, sixty:60, hundred:100 };
@@ -161,6 +162,39 @@ export function revisePlan(plan, vendors, id, value) {
   const next = reviseAssumption(plan.assumptions, id, value);
   return assemblePlan(plan.baseOccasion || plan.occasion, vendors, plan.serviceLevel,
     { assumptions: next, baseOccasion: plan.baseOccasion || plan.occasion });
+}
+
+// Change one input and report what moved. The plan is rebuilt in full; what comes
+// back is the difference, because that is what a person needs to read.
+export function replan(plan, vendors, change) {
+  const base = plan.baseOccasion || plan.occasion;
+  let after, what;
+
+  if (change.serviceLevel) {
+    after = assemblePlan(base, vendors, change.serviceLevel,
+      { assumptions: plan.assumptions, baseOccasion: base });
+    what = `Service level ${plan.serviceLevel} -> ${change.serviceLevel}.`;
+  } else if (change.description !== undefined) {
+    const reparsed = parseOccasion(change.description);
+    after = assemblePlan(reparsed, vendors, plan.serviceLevel,
+      { assumptions: plan.assumptions, baseOccasion: reparsed });
+    what = `Occasion re-read from a new description.`;
+  } else {
+    const was = plan.assumptions.find(a => a.id === change.assumption);
+    after = revisePlan(plan, vendors, change.assumption, change.value);
+    const now = after.assumptions.find(a => a.id === change.assumption);
+    what = `${was ? was.label : change.assumption} ${was ? was.value : '?'} -> ${now.value}.`;
+  }
+
+  const delta = diffFindings(plan.findings, after.findings);
+  delta.change = what;
+  const spent = after.basket.subtotal - plan.basket.subtotal;
+  delta.cost = spent === 0
+    ? null
+    : `Order ${spent > 0 ? 'up' : 'down'} $${Math.abs(spent)}, now $${after.basket.subtotal}.`;
+  delta.lines = summarizeDelta(delta);
+
+  return { plan: after, delta };
 }
 
 export function ownershipTable(plan, vendors) {

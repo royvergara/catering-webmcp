@@ -39,6 +39,12 @@
     </div>
   </section>
 
+  <!-- what changed: the delta, not a re-render -->
+  <section class="chit mb-4" id="deltaCard" hidden>
+    <div class="chit-head"><span class="chit-title">What changed</span><span class="chit-note" id="deltaNote"></span></div>
+    <div class="chit-body" id="delta"></div>
+  </section>
+
   <!-- naive baseline -->
   <section class="chit mb-4" id="naiveCard" hidden>
     <div class="chit-head"><span class="chit-title">What you would have ordered</span><span class="chit-note">one vendor, sized by headcount</span></div>
@@ -99,8 +105,9 @@ window.addEventListener('unhandledrejection', e => {
 </script>
 
 <script type="module">
-import { parseOccasion, assemblePlan, revisePlan, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
+import { parseOccasion, assemblePlan, revisePlan, replan, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
 import { runChecks } from '/engine/engine.js';
+import { CHECKS as CHECK_LABELS } from '/engine/replan.js';
 import { mountHeader, badge, tierBadge, money, label } from '/shared/ui.js';
 
 mountHeader('Planner');
@@ -110,6 +117,7 @@ const $ = id => document.getElementById(id);
 const els = {
   q: $('q'), lvl: $('lvl'), go: $('go'), statusLine: $('statusLine'), err: $('err'),
   naiveCard: $('naiveCard'), naive: $('naive'),
+  deltaCard: $('deltaCard'), delta: $('delta'), deltaNote: $('deltaNote'),
   basketCard: $('basketCard'), basket: $('basket'), basketNote: $('basketNote'), math: $('math'),
   assumeCard: $('assumeCard'), assumptions: $('assumptions'), assumeNote: $('assumeNote'),
   findCard: $('findCard'), findings: $('findings'),
@@ -229,22 +237,55 @@ function renderAssumptions(plan) {
   }).join('');
 
   els.assumptions.querySelectorAll('[data-a]').forEach(el => {
-    el.addEventListener('change', () => revise(el.dataset.a, el.tagName === 'SELECT' ? !!el.value : el.value));
+    el.addEventListener('change', () =>
+      applyChange({ assumption: el.dataset.a, value: el.tagName === 'SELECT' ? !!el.value : el.value }));
   });
 }
 
-function revise(id, value) {
+// Change one input, rebuild, and report only what moved.
+function applyChange(change) {
+  if (!current) return run();
   try {
     els.err.hidden = true;
-    const next = revisePlan(current, vendors, id, value);
-    log('revise', { assumption: id, value },
-        { subtotal: next.basket.subtotal, items: next.basket.items.length, findings: next.findings.length });
-    render(next);
-    status(next);
+    const { plan, delta } = replan(current, vendors, change);
+    log('replan', change, { summary: delta.lines });
+    render(plan);
+    renderDelta(delta);
+    status(plan);
+    return plan;
   } catch (e) {
     els.err.hidden = false;
-    els.err.textContent = 'Could not apply that correction: ' + e.message;
+    els.err.textContent = 'Could not apply that change: ' + e.message;
   }
+}
+
+function renderDelta(delta) {
+  els.deltaCard.hidden = false;
+  els.deltaCard.classList.add('rise');
+
+  const worse = delta.persisting.filter(p => p.worse);
+  const better = delta.persisting.filter(p => p.better);
+  const brokeCount = delta.broke.length + worse.length;
+  els.deltaNote.textContent = brokeCount
+    ? `${brokeCount} now broken`
+    : 'nothing broke';
+
+  // the badge says what happened; the severity says how bad the finding itself is
+  const line = (kind, what, text) =>
+    `<div class="flex flex-wrap gap-2 items-baseline text-[14px] mb-1.5">${badge(kind, what)}<span>${text}</span></div>`;
+  const sev = f => (f.severity === 'blocker' ? 'blocker' : 'risk');
+
+  els.delta.innerHTML =
+    `<p class="m-0 mb-2 font-mono text-[13px]">${delta.change}${delta.cost ? ' ' + delta.cost : ''}</p>` +
+    delta.broke.map(f => line(sev(f), 'now broken', f.message)).join('') +
+    worse.map(p => line(sev(p.finding), `worse by ${Math.abs(p.by)}`, p.finding.message)).join('') +
+    delta.cleared.map(f => line('ok', 'cleared', f.message)).join('') +
+    better.map(p => line('risk', `improved by ${Math.abs(p.by)}, still open`, p.finding.message)).join('') +
+    (brokeCount || delta.cleared.length || better.length
+      ? '' : '<p class="m-0 text-[14px] text-covered">Nothing broke. Everything that was true before is still true.</p>') +
+    (delta.stillFine.length
+      ? `<p class="m-0 mt-2 text-[13px] text-ink-mute">Still fine: ${delta.stillFine.map(c => CHECK_LABELS[c]).join(', ')}.</p>`
+      : '');
 }
 
 function status(plan) {
@@ -278,6 +319,7 @@ function run() {
     log('plan_meal', { description: els.q.value, service_level: els.lvl.value },
         { headcount: occasion.headcount, dietary: occasion.dietary, findings: plan.findings.length });
     render(plan);
+    els.deltaCard.hidden = true;   // a first plan has nothing to compare against
     status(plan);
     return plan;
   } catch (e) {
@@ -287,8 +329,8 @@ function run() {
   }
 }
 
-els.go.addEventListener('click', run);
-els.lvl.addEventListener('change', run);
+els.go.addEventListener('click', () => (current ? applyChange({ description: els.q.value }) : run()));
+els.lvl.addEventListener('change', () => (current ? applyChange({ serviceLevel: els.lvl.value }) : run()));
 
 try {
   vendors = await Promise.all(SLUGS.map(s => fetch(`/data/vendors/${s}.json`).then(r => {
@@ -345,6 +387,28 @@ if (vendors.length && document.modelContext?.registerTool) {
         subtotal: after.basket.subtotal,
         items: after.basket.items.length,
         findings: after.findings
+      };
+    });
+
+  reg('replan', 'Change one input and report only what broke. Returns the difference from the previous plan, not a whole new plan.',
+    { type:'object', properties:{
+        assumption:{type:'string'}, value:{},
+        service_level:{type:'string', enum:['pickup','delivery','dropoff_setup']},
+        description:{type:'string'} } },
+    ({ assumption, value, service_level, description }) => {
+      const before = current || run();
+      const change = description !== undefined ? { description }
+        : service_level ? { serviceLevel: service_level }
+        : { assumption, value };
+      const { plan, delta } = replan(before, vendors, change);
+      render(plan); renderDelta(delta); status(plan);
+      return {
+        changed: delta.change,
+        cost: delta.cost,
+        still_fine: delta.stillFine.map(c => CHECK_LABELS[c]),
+        now_broken: delta.broke,
+        cleared: delta.cleared,
+        summary: delta.lines
       };
     });
 
