@@ -508,16 +508,20 @@ function negotiate(constraint, idx) {
     </div>`;
 }
 
-function run() {
+// `given` is what a caller already knew — plan_meal's structured fields. It applies to
+// the run that supplied it and no further: like a parsed value and unlike a confirmed
+// one, it is re-derived each time. If it should stick, it is confirmed on the page,
+// through the same mechanism as everything else.
+function run(given = {}) {
   try {
-    const occasion = parseOccasion(els.q.value);
+    const occasion = parseOccasion(els.q.value, given);
     // anything already confirmed survives a re-plan
     const carried = { assumptions: current?.assumptions || [] };
     options = buildOptions(occasion, vendors, els.lvl.value, carried);
     const top = options.find(o => o.recommended);
     chosenId = top ? top.id : null;
     const plan = top ? top.plan : assemblePlan(occasion, vendors, els.lvl.value, carried);
-    log('plan_meal', { description: els.q.value, service_level: els.lvl.value },
+    log('plan_meal', { description: els.q.value, service_level: els.lvl.value, ...given },
         { headcount: occasion.headcount, dietary: occasion.dietary,
           options: options.map(o => o.summary), findings: plan.findings.length });
     render(plan);
@@ -558,9 +562,28 @@ if (vendors.length) {
         return { content: [{ type: 'text', text: JSON.stringify(out) }] };
       }});
 
-  reg('plan_meal', 'Turn a plain description of an occasion into a need list: headcount, budget, dietary groups and venue constraints. Returns `found` — which of those were read rather than assumed — and `unread`, any quantity in the description no field claimed. This reader is shallow on purpose; pass the fields you already understood rather than relying on it.',
-    { type:'object', properties:{ description:{type:'string'} }, required:['description'] },
-    ({ description }) => { els.q.value = description; const p = run(); return { occasion: p.occasion, demand: p.basket.demand }; });
+  reg('plan_meal',
+    'Turn an occasion into a need list: headcount, budget, dietary groups, venue constraints. '
+    + 'Pass whatever you already understood as fields — they are taken as stated and outrank anything '
+    + 'read from `description`, whose reader is deliberately shallow. Returns `given` (fields you supplied), '
+    + '`found` (what is known rather than assumed) and `unread` (quantities in the description no field claimed). '
+    + 'With no arguments it re-plans whatever the page currently holds.',
+    { type:'object', properties:{
+        description:{ type:'string', description:'the occasion in plain words; optional if you pass the fields' },
+        headcount:{ type:'integer', description:'how many people are eating' },
+        budget:{ type:'number', description:'total to spend, in dollars' },
+        dietary:{ type:'object', description:'guest counts by group, e.g. {"vegetarian":6,"gluten_free":2}' },
+        venue_has_kitchen:{ type:'boolean' },
+        duration_hours:{ type:'number', description:'how long food is served for' },
+        service_level:{ type:'string', enum:['pickup','delivery','dropoff_setup'] }
+      } },
+    ({ description, headcount, budget, dietary, venue_has_kitchen, duration_hours, service_level }) => {
+      if (description !== undefined) els.q.value = description;
+      if (service_level) els.lvl.value = service_level;
+      const p = run({ headcount, budget, dietary,
+                      venueHasKitchen: venue_has_kitchen, durationHours: duration_hours });
+      return { occasion: p.occasion, demand: p.basket.demand };
+    });
 
   reg('build_basket', 'Compose an order across vendors covering every dietary group and the total volume, with the arithmetic behind each quantity.',
     { type:'object', properties:{ service_level:{type:'string', enum:['pickup','delivery','dropoff_setup']} } },

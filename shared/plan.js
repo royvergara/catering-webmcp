@@ -30,7 +30,11 @@ const COUNTS_PEOPLE = String.raw`(?!\s+(?!(?:${PEOPLE}|${UNCOUNTED})\b)[a-z])`;
 // is not read, so reporting it again would only be noise.
 const TIME_WORD = /^(?:pm|am|oclock|noon|ish|hrs?)$/;
 
-export function parseOccasion(text) {
+// `given` is what the caller already knows: an agent calling plan_meal has done the
+// language work before this function ever runs, and a field it passes is better
+// evidence than anything a regex can recover from prose. Given values win, and are
+// recorded as their own kind of source so the plan can say which is which.
+export function parseOccasion(text, given = {}) {
   let t = String(text).toLowerCase();
   // people write "six vegetarians", not "6 vegetarians"
   for (const [w, n] of Object.entries(WORDS)) t = t.replace(new RegExp(`\\b${w}\\b`, 'g'), String(n));
@@ -74,26 +78,42 @@ export function parseOccasion(text) {
     if (!unread.includes(phrase)) unread.push(phrase);
   }
 
-  // What was actually read, as opposed to what was assumed in its absence. The
-  // planner surfaces the difference rather than presenting a default as a fact.
+  const supplied = [];
+  const take = (field, value) => {
+    if (value === undefined || value === null) return undefined;
+    supplied.push(field);
+    return value;
+  };
+  const gHead = take('headcount', given.headcount);
+  const gBudget = take('budget', given.budget);
+  const gDiet = take('dietary', given.dietary);
+  const gKitchen = take('venueHasKitchen', given.venueHasKitchen);
+  const gHours = take('durationHours', given.durationHours);
+  const gServeAt = take('serveAt', given.serveAt);
+
+  // What is known, as opposed to what was assumed in its absence — whether it was
+  // handed over or recovered from the text. Which of those two it was is `given`.
+  // This stays boolean because deriveAssumptions reads it to tell a real value from
+  // a default wearing one's clothes.
   const found = {
-    headcount: headcount !== undefined,
-    budget: budget !== undefined,
-    dietary: Object.keys(dietary).length > 0,
-    serveAt: false   // no date parsing yet; the demo time is a fixture, and says so
+    headcount: gHead !== undefined || headcount !== undefined,
+    budget: gBudget !== undefined || budget !== undefined,
+    dietary: gDiet !== undefined || Object.keys(dietary).length > 0,
+    serveAt: gServeAt !== undefined   // no date parsing; the demo time is a fixture, and says so
   };
 
   return {
     found,
+    given: supplied,
     unread,
-    headcount: headcount ?? 40,
-    budget: budget ?? 600,
-    serveAt: '2026-09-12T18:00:00-05:00',
+    headcount: gHead ?? headcount ?? 40,
+    budget: gBudget ?? budget ?? 600,
+    serveAt: gServeAt ?? '2026-09-12T18:00:00-05:00',
     format: 'buffet',
-    durationHours: 3,
+    durationHours: gHours ?? 3,
     mealReplaces: true,
-    dietary,
-    venueHasKitchen: !/no kitchen/.test(t),
+    dietary: gDiet ?? dietary,
+    venueHasKitchen: gKitchen ?? !/no kitchen/.test(t),
     hostProvides: [],
     normalized: t,
     raw: text

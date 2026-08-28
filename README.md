@@ -55,6 +55,13 @@ Every vendor here answers `get_requirements(service_level)` alongside the usual 
 availability tools. That one addition is what turns separate purchases into a plan — it is
 the difference between a receipt and knowing you need to be somewhere at 3pm with a car.
 
+The tools take that seriously in their own schemas. `plan_meal` accepts `headcount`,
+`budget`, `dietary`, `venue_has_kitchen` and `duration_hours` as declared fields, because
+an agent calling it has already understood the sentence — asking it for prose and re-doing
+the language work with regex on the page throws that away. Anything you do pass outranks
+the description, and the plan reports which numbers were **given**, which were **read**,
+and which it merely **assumed**.
+
 ## Try it
 
 **No special browser needed.** [`/harness.html`](https://catering-webmcp.vercel.app/harness.html)
@@ -115,7 +122,7 @@ below T0 can act**.
 ## Testing
 
 ```bash
-npm test      # 174 tests. No browser, no dependencies.
+npm test      # 181 tests. No browser, no dependencies.
 npm run dev   # http://localhost:8080
 ```
 
@@ -153,7 +160,7 @@ engine/trust.js       vendor text is data: field allowlist + injection quarantin
 engine/options.js     two or three orders, ranked and described by tradeoff
 engine/adapters.js    read a business at T0–T4; what each tier can and cannot answer
 engine/schedule.js    when each job has to happen, in the event's own clock
-engine/*.test.mjs     174 tests
+engine/*.test.mjs     181 tests
 
 shared/webmcp.js      where a page's tools go: real WebMCP, or a local registry
 shared/plan.js        parse, compose, explain the arithmetic, ownership table

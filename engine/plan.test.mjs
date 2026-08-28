@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
 import { parseOccasion, composeBasket, assemblePlan, ownershipTable, explainQuantity, naiveBasket, replan } from '../shared/plan.js';
+import { deriveAssumptions, CONFIDENCE } from '../engine/assumptions.js';
 
 const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
   .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
@@ -301,4 +302,62 @@ test('residue can never carry markup, whatever was typed', () => {
       assert.match(phrase, /^[\d,]+ [a-z][a-z'-]*$/, `unsafe residue from: ${text}`);
     }
   }
+});
+
+// ---------- what the caller already knew ----------
+// plan_meal's reader is shallow on purpose: an agent calling it has done the language
+// work before the call. These guard the fields it can pass instead.
+
+test('a supplied field is taken as stated and outranks the description', () => {
+  const o = parseOccasion('40 people, $600, 6 vegetarians', { headcount: 60, budget: 900 });
+  assert.equal(o.headcount, 60);
+  assert.equal(o.budget, 900);
+  assert.deepEqual(o.dietary, { vegetarian: 6 }, 'what was not supplied is still read');
+  assert.deepEqual(o.given.sort(), ['budget', 'headcount']);
+});
+
+test('a supplied field counts as known, not assumed', () => {
+  // "feed 12 dogs" says nothing about people, so the parser defaults — unless told
+  const parsed = parseOccasion('feed 12 dogs');
+  assert.equal(parsed.found.headcount, false);
+
+  const told = parseOccasion('feed 12 dogs', { headcount: 30 });
+  assert.equal(told.found.headcount, true);
+  assert.equal(told.headcount, 30);
+});
+
+test('the assumptions panel says a value was given, not parsed or defaulted', () => {
+  const head = o => deriveAssumptions(o, { items: [] }).find(a => a.id === 'occasion.headcount');
+
+  assert.equal(head(parseOccasion('40 people')).source, 'parsed');
+  assert.equal(head(parseOccasion('a party')).source, 'default');
+  assert.equal(head(parseOccasion('a party', { headcount: 30 })).source, 'given');
+
+  // and it is trusted above a parse but below a person confirming it on the page
+  assert.ok(CONFIDENCE.given > CONFIDENCE.parsed);
+  assert.ok(CONFIDENCE.given < CONFIDENCE.user);
+});
+
+test('supplying nothing changes nothing', () => {
+  const bare = parseOccasion(PROMPT);
+  const empty = parseOccasion(PROMPT, {});
+  const undef = parseOccasion(PROMPT, { headcount: undefined, budget: null });
+  for (const o of [empty, undef]) {
+    assert.deepEqual(o.given, []);
+    for (const k of ['headcount', 'budget', 'durationHours', 'venueHasKitchen']) {
+      assert.equal(o[k], bare[k], `${k} moved without being supplied`);
+    }
+    assert.deepEqual(o.dietary, bare.dietary);
+  }
+});
+
+test('a supplied dietary count and kitchen flag reach the plan', () => {
+  const o = parseOccasion('a party', { dietary: { vegan: 4 }, venueHasKitchen: true, durationHours: 5 });
+  assert.deepEqual(o.dietary, { vegan: 4 });
+  assert.equal(o.venueHasKitchen, true);
+  assert.equal(o.durationHours, 5);
+  const plan = assemblePlan(o, vendors, 'pickup');
+  const vegan = plan.assumptions.find(a => a.id === 'occasion.dietary.vegan');
+  assert.equal(vegan.source, 'given');
+  assert.equal(vegan.value, 4);
 });

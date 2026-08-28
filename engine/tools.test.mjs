@@ -141,3 +141,23 @@ test('toolHost stands in only when there is nothing to stand in for', async () =
   assert.match(src, /shimmed: true/);
   assert.match(src, /document\.modelContext\?\.registerTool/);
 });
+
+test('plan_meal takes the fields an agent already understood, not only prose', () => {
+  const src = page('plan.html');
+  const tool = src.slice(src.indexOf("reg('plan_meal'"), src.indexOf("reg('build_basket'"));
+  for (const f of ['headcount', 'budget', 'dietary', 'venue_has_kitchen', 'service_level']) {
+    assert.ok(tool.includes(`${f}:{`), `plan_meal's schema has no ${f}`);
+  }
+  // and prose must not be mandatory, or the structured path cannot be used alone
+  assert.doesNotMatch(tool, /required:\s*\['description'\]/);
+});
+
+test('the harness renders every type plan_meal declares', () => {
+  const h = page('harness.html');
+  // a boolean sent as the string "false" is truthy, and an object sent as a string is
+  // iterated character by character; both looked fine on screen
+  for (const t of ['boolean', 'object', 'array', 'number', 'enum']) {
+    assert.ok(h.includes(`'${t}'`), `harness.html renders no control for ${t}`);
+  }
+  assert.match(h, /JSON\.parse\(raw\)/, 'harness.html never parses an object input');
+});
