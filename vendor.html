@@ -28,12 +28,12 @@
     <p class="lede" id="blurb"></p>
   </div>
 
-  <section class="chit mb-4">
+  <section class="chit mb-4" id="menuCard">
     <div class="chit-head"><span class="chit-title">Menu</span><span class="chit-note" id="menuNote"></span></div>
     <div class="chit-body font-mono text-[13px]" id="menu"></div>
   </section>
 
-  <section class="chit perf mb-8">
+  <section class="chit perf mb-8" id="reqCard">
     <div class="chit-head"><span class="chit-title">What we need from you</span><span class="chit-note">by service level</span></div>
     <div class="chit-body">
       <p class="text-[14px] text-ink-soft mt-0 mb-4">
@@ -56,7 +56,26 @@ import { mountHeader, tierBadge, money, label, esc } from '/shared/ui.js';
 mountHeader('Vendor site');
 const $ = id => document.getElementById(id);
 const slug = new URLSearchParams(location.search).get('v') || 'green-fork';
-const v = await (await fetch(`/data/vendors/${slug}.json`)).json();
+
+// A slug that does not exist used to fetch the 404 page, hand its HTML to
+// JSON.parse, throw, and leave the page reading "Loading…" for ever with nothing
+// to explain it. A mistyped or stale ?v= is the likeliest way anyone arrives
+// here wrong, so say so and offer the way out.
+const res = await fetch(`/data/vendors/${encodeURIComponent(slug)}.json`);
+if (!res.ok) {
+  document.title = 'Vendor not found · Catering WebMCP';
+  $('name').textContent = 'No such vendor';
+  $('blurb').innerHTML = `There is no vendor called “${esc(slug)}”. The link may be mistyped `
+    + 'or out of date — <a href="/">every vendor is linked from the home page</a>.';
+  // a menu and a requirements table for a vendor that does not exist are just
+  // empty furniture; retire them and leave one card that says what to do
+  $('menuCard').hidden = true;
+  $('reqCard').hidden = true;
+  $('log').textContent = `No vendor loaded (${res.status}), so no tools were registered. `
+    + 'Every vendor is linked from the home page.';
+}
+const v = res.ok ? await res.json() : null;
+if (v) {
 
 document.title = `${v.name} · Catering WebMCP`;
 $('name').textContent = v.name;
@@ -109,6 +128,7 @@ if (document.modelContext?.registerTool) {
 } else {
   $('log').textContent = 'WebMCP not available in this browser. Use /harness.html to fire the same tools by hand.';
 }
+}   // end: a vendor was found
 </script>
 </body>
 </html>

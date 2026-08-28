@@ -1,6 +1,10 @@
 /* Component layer. Utilities do layout; these carry identity. */
 :root{
-  --ink:#10131A; --ink-soft:#3A424F; --ink-mute:#6B7480;
+  /* --ink-mute is the most-used secondary colour and sits on five different
+     backgrounds. At #6B7480 it measured 3.93:1 on --sunk and 4.30:1 on --paper,
+     both under the 4.5:1 AA threshold for text this size. #5F6874 is the nearest
+     value that clears it everywhere (worst case 4.68:1, on --sunk). */
+  --ink:#10131A; --ink-soft:#3A424F; --ink-mute:#5F6874;
   --paper:#F2F4F7; --card:#fff; --sunk:#E7EAEF;
   --rule:#D9DEE5; --rule-strong:#B9C1CC;
   --carbon:#1F3FD4; --carbon-soft:#E8ECFC;
@@ -76,7 +80,7 @@ body{
 /* --- badges --- */
 .badge{
   display:inline-flex; align-items:center; gap:.3rem;
-  font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase;
+  font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.08em; text-transform:uppercase;
   padding:.12rem .4rem; border-radius:2px; border:1px solid transparent; white-space:nowrap;
 }
 .badge-blocker{ background:var(--short-soft); color:var(--short); border-color:#F0CFCC; }
@@ -162,7 +166,7 @@ a{ color:var(--carbon); }
   background:var(--carbon);
 }
 .kicker{
-  margin:0; font-family:"IBM Plex Mono",monospace; font-size:.68rem;
+  margin:0; font-family:"IBM Plex Mono",monospace; font-size:.7rem;
   letter-spacing:.18em; text-transform:uppercase; color:var(--ink-soft);
 }
 /* sheets come in a run and are numbered, the way a docket numbers its pages */
@@ -170,7 +174,7 @@ a{ color:var(--carbon); }
 /* the facts about this sheet, stamped where a chit stamps its count */
 .sheethead-meta{
   margin-left:auto; text-align:right; font-family:"IBM Plex Mono",monospace;
-  font-size:.66rem; letter-spacing:.1em; color:var(--ink-mute);
+  font-size:.7rem; letter-spacing:.1em; color:var(--ink-mute);
 }
 .sheethead h1{
   margin:0;
@@ -195,7 +199,6 @@ a{ color:var(--carbon); }
 .lede-note{ margin:.6rem 0 0; max-width:34rem; font-size:.875rem; line-height:1.55; color:var(--ink-mute); }
 @media (max-width:480px){
   .sheethead{ margin-bottom:1.25rem; }
-  .sheethead-meta{ font-size:.62rem; }
   .lede-note{ font-size:.82rem; }
 }
 
@@ -249,7 +252,7 @@ a{ color:var(--carbon); }
 
 /* Where you are, stamped in mono. Fills the gap the nav leaves on a phone. */
 .masthead-where{
-  margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:.66rem;
+  margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:.7rem;
   letter-spacing:.14em; text-transform:uppercase; color:var(--ink-mute);
   /* a long name wraps on a narrow phone; set it flush right and tight so the
      two lines read as one stamp rather than as a broken line */
@@ -265,7 +268,7 @@ a{ color:var(--carbon); }
 
 /* A word, not a hamburger: the system speaks in labels everywhere else. */
 .menu-btn{
-  font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.14em;
+  font-family:"IBM Plex Mono",monospace; font-size:.7rem; letter-spacing:.14em;
   text-transform:uppercase; color:var(--ink-soft);
   border:1px solid var(--rule-strong); border-radius:2px;
   padding:.28rem .5rem; background:var(--card); cursor:pointer;

@@ -215,3 +215,26 @@ test('the header reserves its space before the script that fills it runs', () =>
   assert.doesNotMatch(rule[1], /display:\s*contents/,
     'display:contents gives the wrapper no box, so it can reserve no height');
 });
+
+test('the palette in tailwind.config.js and ui.css agree', () => {
+  // The colours are declared twice: as CSS custom properties for the component
+  // layer, and as tailwind tokens for the utilities. Nothing keeps them in step.
+  // Darkening --ink-mute for contrast fixed the components and left every
+  // `text-ink-mute` utility on the old value — the pages looked half-fixed, and
+  // only measuring caught it.
+  const config = readFileSync('tailwind.config.js', 'utf8');
+  const cssVar = name => (components.match(new RegExp(`--${name}\\s*:\\s*(#[0-9A-Fa-f]{6})`)) || [])[1];
+  const pairs = [
+    ['ink', /ink:\s*\{\s*DEFAULT:\s*'(#[0-9A-Fa-f]{6})'/],
+    ['ink-soft', /ink:.*?soft:\s*'(#[0-9A-Fa-f]{6})'/],
+    ['ink-mute', /ink:.*?mute:\s*'(#[0-9A-Fa-f]{6})'/],
+    ['carbon', /carbon:\s*\{\s*DEFAULT:\s*'(#[0-9A-Fa-f]{6})'/],
+    ['rule', /rule:\s*\{\s*DEFAULT:\s*'(#[0-9A-Fa-f]{6})'/],
+  ];
+  for (const [name, re] of pairs) {
+    const fromConfig = (config.match(re) || [])[1];
+    assert.ok(fromConfig, `tailwind.config.js no longer declares ${name}`);
+    assert.equal(cssVar(name)?.toUpperCase(), fromConfig.toUpperCase(),
+      `--${name} in ui.css and ${name} in tailwind.config.js have drifted apart`);
+  }
+});

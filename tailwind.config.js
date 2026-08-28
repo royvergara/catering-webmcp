@@ -14,7 +14,7 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        ink:    { DEFAULT: '#10131A', soft: '#3A424F', mute: '#6B7480' },
+        ink:    { DEFAULT: '#10131A', soft: '#3A424F', mute: '#5F6874' },
         paper:  { DEFAULT: '#F2F4F7', card: '#FFFFFF', sunk: '#E7EAEF' },
         rule:   { DEFAULT: '#D9DEE5', strong: '#B9C1CC' },
         carbon: { DEFAULT: '#1F3FD4', soft: '#E8ECFC' },   // carbon-copy blue: the brand

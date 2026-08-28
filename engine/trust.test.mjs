@@ -161,17 +161,28 @@ test('every page that renders vendor text escapes it', () => {
   // interpolation of vendor-controlled text into innerHTML must go through esc().
   // Matches property reads (`i.name`, `f.message`) rather than the bare words, so
   // that CSS classes and string literals containing them are not flagged.
-  const RISKY = /\$\{(?![^}]*esc\()[^}]*\.\s*(?:name|blurb|message|description|basis|conditions|why|vendorName|change)\b[^}]*\}/;
+  //
+  // `slug` is here because it is not vendor data but is just as untrusted: it comes
+  // straight off ?v= in the URL, and vendor.html reports it back when no such vendor
+  // exists. A bare identifier, so the property-read pattern alone would miss it.
+  // Two escapes count, because there are two sinks: esc() for markup, and
+  // encodeURIComponent() for a URL. index.html builds vendor links with the latter,
+  // and flagging those would be crying wolf at correct code.
+  const RISKY = /\$\{(?![^}]*(?:esc|encodeURIComponent)\()[^}]*(?:\.\s*(?:name|blurb|message|description|basis|conditions|why|vendorName|change)\b|\bslug\b)[^}]*\}/;
 
   assert.ok(RISKY.test('`<p>${v.blurb}</p>`'), 'the guard still recognises an unescaped read');
   assert.ok(!RISKY.test('`<p>${esc(v.blurb)}</p>`'), 'and accepts an escaped one');
+  assert.ok(RISKY.test('`<p>no vendor called ${slug}</p>`'), 'and a bare slug from the URL');
+  assert.ok(!RISKY.test('`<p>no vendor called ${esc(slug)}</p>`'), 'but not an escaped one');
+  assert.ok(!RISKY.test('`<a href="?v=${encodeURIComponent(v.slug)}">`'), 'nor a URL-encoded one');
 
   const risky = [];
   for (const file of ['plan.html', 'index.html', 'vendor.html']) {
     for (const [i, line] of readFileSync(file, 'utf8').split('\n').entries()) {
       // textContent and document.title are text sinks, not markup: escaping there
-      // would render "Smith &amp; Co" to the user.
-      if (/document\.title|\.textContent\s*=/.test(line)) continue;
+      // would render "Smith &amp; Co" to the user. A fetch URL is not markup either
+      // — it wants encodeURIComponent, which is a different job.
+      if (/document\.title|\.textContent\s*=|fetch\(/.test(line)) continue;
       const m = line.match(RISKY);
       if (m) risky.push(`${file}:${i + 1}  ${m[0]}`);
     }
