@@ -29,6 +29,11 @@ tests stop running in Node.
 - **`shared/tailwind.css` is generated and committed.** Add a utility class to the markup and
   forget to regenerate, and the class silently does nothing. `engine/styles.test.mjs` now
   catches this; the regeneration command is in `tailwind.config.js`.
+- **`tailwind.config.js` is the only place a design value is written down.** It emits the
+  tokens twice from one literal: as utilities for the markup, and as `--custom-properties`
+  for `shared/ui.css`. The palette used to live in both files, they drifted, and darkening a
+  colour for contrast fixed the components while leaving every matching utility on the old
+  value. A raw hex or a literal font stack in `ui.css` now fails a test.
 - **A component rule and a utility class have the same specificity**, so whichever stylesheet
   is linked last wins — and `ui.css` is linked last. `.field { width: 100% }` silently beat
   `w-24`, `py-1` and `text-[13px]` on every control. Component rules that markup decorates
