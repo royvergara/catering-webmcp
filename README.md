@@ -55,11 +55,22 @@ Every vendor here answers `get_requirements(service_level)` alongside the usual 
 availability tools. That one addition is what turns separate purchases into a plan — it is
 the difference between a receipt and knowing you need to be somewhere at 3pm with a car.
 
+The tools take that seriously in their own schemas. `plan_meal` accepts `headcount`,
+`budget`, `dietary`, `venue_has_kitchen` and `duration_hours` as declared fields, because
+an agent calling it has already understood the sentence — asking it for prose and re-doing
+the language work with regex on the page throws that away. Anything you do pass outranks
+the description, and the plan reports which numbers were **given**, which were **read**,
+and which it merely **assumed**.
+
 ## Try it
 
 **No special browser needed.** [`/harness.html`](https://catering-webmcp.vercel.app/harness.html)
-shims `document.modelContext` and gives you a button per tool. Every tool can be fired by
-hand, on a phone included. This covers everything except discovery.
+loads each page in turn and fires the tools that page registered — all **22**, on a phone
+included. One row per tool: its name, how many arguments it takes, and a **Run** button that
+fires it with sensible defaults. Open a row for the full description and a labelled field per
+schema property. Where a browser has no `document.modelContext`, the pages keep the same tools
+in a local registry and the harness reads that, so what you fire is the page's own tool closed
+over the page's own state, not a copy. Covers everything except discovery.
 
 **With real WebMCP** — the ChatGPT in-app browser, or **desktop** Chrome 149+ with
 `chrome://flags/#enable-webmcp-testing`:
@@ -112,7 +123,7 @@ below T0 can act**.
 ## Testing
 
 ```bash
-npm test      # 160 tests. No browser, no dependencies.
+npm test      # 184 tests. No browser, no dependencies.
 npm run dev   # http://localhost:8080
 ```
 
@@ -123,7 +134,8 @@ Three levels, cheapest first:
    JSON-serialisable output; requirements vary by service level; blackout dates are honoured;
    holds are never binding. It also guards the things that fail *silently* in a browser — a
    stale generated stylesheet, a missing font file, a component rule that overrides a utility.
-2. **`/harness.html`** — registration, input shapes and output rendering, in any browser.
+2. **`/harness.html`** — every tool on the site, fired by hand against the page that
+   registers it: registration, input shapes and output rendering, in any browser.
 3. **A real agentic browser** — needed for exactly two questions: does an agent *discover* the
    tools, and can it *chain* calls across pages.
 
@@ -139,7 +151,7 @@ index.html            hub; links every vendor
 vendor.html?v=slug    a vendor site; registers 5 tools from data/vendors/<slug>.json
 plan.html             the planner; registers 11 tools
 gradient.html         one business published four ways, asked the same question
-harness.html          fire every tool by hand, no agent required
+harness.html          fire all 22 tools by hand, against the pages that register them
 smoke.html            two tools and nothing else; discovery check
 
 engine/engine.js      6 pure checks: quantity, coverage, unclaimed, timing, availability, budget
@@ -149,8 +161,9 @@ engine/trust.js       vendor text is data: field allowlist + injection quarantin
 engine/options.js     two or three orders, ranked and described by tradeoff
 engine/adapters.js    read a business at T0–T4; what each tier can and cannot answer
 engine/schedule.js    when each job has to happen, in the event's own clock
-engine/*.test.mjs     160 tests
+engine/*.test.mjs     184 tests
 
+shared/webmcp.js      where a page's tools go: real WebMCP, or a local registry
 shared/plan.js        parse, compose, explain the arithmetic, ownership table
 shared/vendor-tools.js the 5 vendor tools, pure — imported by both the page and Node
 shared/ui.js          masthead, badges, formatters, escaping

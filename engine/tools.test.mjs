@@ -95,3 +95,92 @@ test('holds are never binding', () => {
     assert.equal(t.run({ date: '2026-09-12' }).binding, false);
   }
 });
+
+// ---------- reachability ----------
+// A tool nobody can call is a tool nobody can judge. These guard the thing that fails
+// silently in a browser: a page that registers nothing unless the browser happens to
+// have WebMCP, which is almost no browser, and a harness that then shows an empty list.
+
+const PAGES_WITH_TOOLS = ['vendor.html', 'plan.html', 'gradient.html', 'smoke.html'];
+const page = f => readFileSync(f, 'utf8');
+
+test('every page registers its tools whether or not the browser has WebMCP', () => {
+  for (const f of PAGES_WITH_TOOLS) {
+    const src = page(f);
+    assert.match(src, /import \{ toolHost \} from '\/shared\/webmcp\.js'/, `${f} does not import toolHost`);
+    assert.match(src, /toolHost\(\)/, `${f} never calls toolHost`);
+    // the old shape: register only if the browser already provides a modelContext
+    assert.doesNotMatch(src, /if \([^)]*document\.modelContext\?\.registerTool\)/,
+      `${f} still registers only when WebMCP is present, so /harness.html sees nothing`);
+  }
+});
+
+test('the harness offers every page that registers tools', () => {
+  const h = page('harness.html');
+  for (const f of PAGES_WITH_TOOLS) {
+    assert.ok(h.includes(`/${f}`), `harness.html never loads ${f}`);
+  }
+  // and every vendor, since each publishes its own data through the same five tools
+  for (const v of vendors) {
+    assert.ok(h.includes(v.slug) || /SLUGS/.test(h), `harness.html cannot reach ${v.slug}`);
+  }
+});
+
+test('the harness reads the registry rather than rebuilding the tools', () => {
+  const h = page('harness.html');
+  // rebuilding meant it exercised a copy: five vendor tools, and never the other seventeen
+  assert.doesNotMatch(h, /buildVendorTools/,
+    'harness.html rebuilds vendor tools instead of reading what the page registered');
+  assert.match(h, /document\.modelContext/, 'harness.html never reads a page registry');
+});
+
+test('toolHost stands in only when there is nothing to stand in for', async () => {
+  const src = readFileSync('shared/webmcp.js', 'utf8');
+  // the shim must be marked, because "no registry at all" and "a real one" are
+  // different states and the harness reports them differently
+  assert.match(src, /shimmed: true/);
+  assert.match(src, /document\.modelContext\?\.registerTool/);
+});
+
+test('plan_meal takes the fields an agent already understood, not only prose', () => {
+  const src = page('plan.html');
+  const tool = src.slice(src.indexOf("reg('plan_meal'"), src.indexOf("reg('build_basket'"));
+  for (const f of ['headcount', 'budget', 'dietary', 'venue_has_kitchen', 'service_level']) {
+    assert.ok(tool.includes(`${f}:{`), `plan_meal's schema has no ${f}`);
+  }
+  // and prose must not be mandatory, or the structured path cannot be used alone
+  assert.doesNotMatch(tool, /required:\s*\['description'\]/);
+});
+
+test('the harness renders every type plan_meal declares', () => {
+  const h = page('harness.html');
+  // a boolean sent as the string "false" is truthy, and an object sent as a string is
+  // iterated character by character; both looked fine on screen
+  for (const t of ['boolean', 'object', 'array', 'number', 'enum']) {
+    assert.ok(h.includes(`'${t}'`), `harness.html renders no control for ${t}`);
+  }
+  assert.match(h, /JSON\.parse\(raw\)/, 'harness.html never parses an object input');
+});
+
+test('the harness opens as a list, not a page of form', () => {
+  const h = page('harness.html');
+  // every tool is a closed row; the inputs are behind it. Rendering all of them at
+  // once made eleven tools read as a wall nobody would fill in.
+  assert.match(h, /<details data-tool=/, 'tool rows are not collapsible');
+  assert.doesNotMatch(h, /<details data-tool="\$\{esc\(t\.name\)\}" open/, 'tool rows start open');
+  // and Run must not toggle the row it sits in
+  assert.match(h, /e\.stopPropagation\(\)/, 'the Run button would toggle its own row');
+});
+
+test('every harness control is labelled, and only required ones are marked', () => {
+  const h = page('harness.html');
+  assert.match(h, /<label for="in-\$\{tool\}-\$\{esc\(f\.name\)\}"/, 'controls are not labelled');
+  // on plan_meal every field is optional, so marking each one said nothing and read
+  // as a demand; the exception is what carries information
+  assert.match(h, /f\.required \? ' <span class="required">required<\/span>' : ''/);
+});
+
+test('a prose argument gets room to be read', () => {
+  const h = page('harness.html');
+  assert.match(h, /<textarea/, 'a long string argument is still a one-line input');
+});

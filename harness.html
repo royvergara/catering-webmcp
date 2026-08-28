@@ -23,76 +23,247 @@
     </div>
     <h1>Call any tool by hand, in any browser</h1>
     <p class="lede">
-      Stands in for <code class="font-mono text-[15px] bg-paper-sunk px-1">document.modelContext</code>, so every tool can
-      be run without an agent. Covers everything except discovery.
+      Every tool on this site, fired against the page that registers it. No agent, no special
+      browser — where there is no <code class="font-mono text-[15px] bg-paper-sunk px-1">document.modelContext</code>,
+      the pages keep the same tools in a local registry and this reads that.
     </p>
   </div>
 
   <section class="chit mb-4">
-    <div class="chit-head"><span class="chit-title">Vendor</span><span class="chit-note" id="reg"></span></div>
+    <div class="chit-head"><span class="chit-title">Page</span><span class="chit-note" id="reg">loading</span></div>
     <div class="chit-body">
-      <label for="pick" class="sr-only">Choose a vendor</label>
+      <label for="pick" class="sr-only">Choose a page</label>
       <select id="pick" class="field w-auto text-[14px] py-1.5 mb-3"></select>
-      <div id="tools" class="flex flex-wrap gap-2"></div>
+      <div id="tools" class="flex flex-col gap-2"></div>
     </div>
   </section>
 
   <section class="chit">
-    <div class="chit-head"><span class="chit-title">Output</span></div>
+    <div class="chit-head"><span class="chit-title">Output</span><span class="chit-note" id="outNote"></span></div>
     <div class="chit-body"><pre id="out" class="readout">Pick a tool above.</pre></div>
   </section>
+
+  <!-- The page under test. It is a real page doing real work; the tools below are the
+       ones it registered, closed over its own state, not a second copy built from data. -->
+  <iframe id="frame" title="The page being exercised" class="sr-only" aria-hidden="true"></iframe>
 </main>
 
 <script type="module">
-import { buildVendorTools } from '/shared/vendor-tools.js';
-import { mountHeader } from '/shared/ui.js';
+import { mountHeader, esc } from '/shared/ui.js';
 
 mountHeader('Tool harness');
 const $ = id => document.getElementById(id);
-const registry = [];
-if (!document.modelContext) {
-  document.modelContext = { registerTool: t => registry.push(t) };
-  document.modelContext.__shimmed = true;
-}
 
-const slugs = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','prime-platters','loop-rentals','handoff-staffing'];
-$('pick').innerHTML = slugs.map(s => `<option>${s}</option>`).join('');
+// Every page that registers tools, in the order the nav lists them. The harness loads
+// one at a time in a same-origin frame and reads the registry that page filled — so
+// what you fire here is the page's own tool, closed over the page's own state. The
+// harness used to rebuild the vendor tools from data instead, which meant it exercised
+// a copy of five tools and never saw the other twenty-two at all.
+const SLUGS = ['green-fork','masa-y-mas','sweet-bench','casa-vieja','prime-platters','loop-rentals','handoff-staffing'];
+const PAGES = [
+  { label: 'Planner', url: '/plan.html' },
+  { label: 'Source gradient', url: '/gradient.html' },
+  { label: 'Smoke test', url: '/smoke.html' },
+  ...SLUGS.map(s => ({ label: `Vendor · ${s}`, url: `/vendor.html?v=${encodeURIComponent(s)}` }))
+];
 
-async function load(slug) {
-  registry.length = 0;
-  const v = await (await fetch(`/data/vendors/${slug}.json`)).json();
-  for (const t of buildVendorTools(v)) {
-    document.modelContext.registerTool({
-      name: t.name, description: t.description, inputSchema: t.inputSchema,
-      execute: async input => ({ content: [{ type: 'text', text: JSON.stringify(t.run(input)) }] })
-    });
-  }
-  $('reg').textContent = `${registry.length} tools · ` +
-    (document.modelContext.__shimmed ? 'shimmed' : 'real WebMCP present');
+$('pick').innerHTML = PAGES.map((p, i) => `<option value="${i}">${esc(p.label)}</option>`).join('');
 
-  const samples = {
-    check_availability: { date: '2026-09-12', headcount: 40 },
-    get_menu: { dietary: ['vegetarian'] },
-    get_requirements: { service_level: v.service_levels[0] },
-    propose_accommodation: { constraint: 'timing' },
-    hold: { date: '2026-09-12', items: [v.menu[0].id] }
+// Sensible starting values, so a tool that needs an argument can be fired in one click.
+// Anything here is editable in the field before firing.
+const SAMPLES = {
+  check_availability: { date: '2026-09-12', headcount: 40 },
+  get_menu:           { dietary: 'vegetarian' },
+  hold:               { date: '2026-09-12' },
+  propose_accommodation: { constraint: 'timing' },
+  plan_meal:          { description: '40 people, Saturday at 6, $600, six vegetarians, two gluten free, no kitchen at the venue' },
+
+  choose_option:      { option: 'covers' },
+  negotiate:          { constraint: 'timing' },
+  // revise and replan both key off an assumption id, which is not guessable from the
+  // schema alone. list_assumptions returns the full set; this is one that always exists.
+  revise:             { assumption: 'occasion.headcount', value: '60' },
+  replan:             { assumption: 'occasion.headcount', value: '60' },
+  ask:                { question: 'what do you need from me for pickup?' },
+  ping:               { message: 'hello from the harness' }
+};
+
+// The page's module fetches its data before it registers anything, so the frame's load
+// event is too early. There is nothing to listen for across the frame, so wait for the
+// registry to fill.
+const settle = win => new Promise(resolve => {
+  const started = Date.now();
+  const tick = () => {
+    const mc = win.document.modelContext;
+    if (mc?.tools?.length || Date.now() - started > 4000) return resolve(mc?.tools || []);
+    setTimeout(tick, 60);
   };
+  tick();
+});
 
-  $('tools').innerHTML = '';
-  for (const t of registry) {
-    const b = document.createElement('button');
-    b.className = 'btn btn-quiet font-mono';
-    b.textContent = t.name;
-    b.onclick = async () => {
-      const input = samples[t.name] || {};
-      const res = await t.execute(input);
-      $('out').textContent = JSON.stringify({ tool: t.name, input, output: JSON.parse(res.content[0].text) }, null, 2);
-    };
-    $('tools').appendChild(b);
+// One input per declared property. The schema is the contract an agent reads, so the
+// harness renders exactly what the schema says and nothing it does not.
+function fields(schema) {
+  const props = (schema && schema.properties) || {};
+  const required = new Set((schema && schema.required) || []);
+  const kind = spec =>
+    spec.enum ? 'enum'
+    : spec.type === 'boolean' ? 'boolean'
+    : spec.type === 'object' ? 'object'
+    : spec.type === 'array' ? 'array'
+    : spec.type === 'number' || spec.type === 'integer' ? 'number'
+    : 'text';
+  return Object.entries(props).map(([name, spec]) => ({
+    name,
+    required: required.has(name),
+    hint: spec.description || '',
+    type: kind(spec),
+    values: spec.enum || []
+  }));
+}
+
+const control = (tool, f, value) => {
+  const id = `in-${tool}-${f.name}`;
+  // An object goes in as the JSON it is. Sending the raw string instead is how
+  // dietary arrived as "vegan:4" and the planner iterated over its characters.
+  const v = value === undefined ? ''
+    : f.type === 'object' ? JSON.stringify(value)
+    : String(value);
+  const pick = options => `<select id="${id}" data-f="${esc(f.name)}" data-t="${f.type}" class="field w-auto text-[13px] py-1">` +
+    options.map(o => `<option value="${esc(o)}"${String(o) === v ? ' selected' : ''}>${esc(o === '' ? '—' : o)}</option>`).join('') +
+    '</select>';
+  if (f.type === 'enum') return pick(f.required ? f.values : ['', ...f.values]);
+  // unset is a real third state: a boolean nobody set is not a false one
+  if (f.type === 'boolean') return pick(['', 'true', 'false']);
+  // Prose needs room to be read, not a one-line box that hides most of the sentence
+  // behind its own right edge. Anything seeded long enough to be a sentence gets it.
+  if (f.type === 'text' && v.length > 40) {
+    return `<textarea id="${id}" data-f="${esc(f.name)}" data-t="text" rows="3"` +
+      ` class="field font-mono text-[13px]">${esc(v)}</textarea>`;
+  }
+  return `<input id="${id}" data-f="${esc(f.name)}" data-t="${f.type}" class="field text-[13px] py-1" value="${esc(v)}"` +
+    ` placeholder="${esc(f.hint || f.name)}">`;
+};
+
+// Every control is labelled. Two of these were bare selects reading "—", which told
+// nobody which argument they set.
+const labelled = (tool, f, sample) => `
+  <div class="mt-2">
+    <label for="in-${tool}-${esc(f.name)}" class="block font-mono text-[11px] uppercase tracking-[.12em] text-ink-mute mb-1">
+      ${esc(f.name.replace(/_/g, ' '))}${f.required ? ' <span class="required">required</span>' : ''}
+    </label>
+    ${control(tool, f, sample[f.name])}
+  </div>`;
+
+const readValue = el => {
+  const raw = el.value.trim();
+  if (!raw) return undefined;
+  if (el.dataset.t === 'number') return Number(raw);
+  if (el.dataset.t === 'boolean') return raw === 'true';
+  if (el.dataset.t === 'array') return raw.split(',').map(s => s.trim()).filter(Boolean);
+  if (el.dataset.t === 'object') return JSON.parse(raw);   // a bad object is the caller's error, and is shown as one
+  return raw;
+};
+
+// One row per tool: the name, and a button that fires it with what it already holds.
+// Everything else — the full description and every argument — is behind the row, so
+// eleven tools read as eleven lines rather than a page of empty form. A tool can be
+// run without ever opening it, which is the common case.
+const row = t => {
+  const fs = fields(t.inputSchema);
+  const sample = SAMPLES[t.name] || {};
+  const first = (t.description || '').split(/(?<=\.)\s/)[0];
+  return `<details data-tool="${esc(t.name)}" class="toolrow">
+    <summary class="toolsum">
+      <span class="font-mono text-[14px] text-ink">${esc(t.name)}</span>
+      <span class="toolsum-note">${fs.length ? `${fs.length} argument${fs.length === 1 ? '' : 's'}` : 'no arguments'}</span>
+      <button class="btn btn-quiet ml-auto" data-run="${esc(t.name)}">Run</button>
+    </summary>
+    <div class="toolbody">
+      <p class="m-0 text-[13px] text-ink-mute">${esc(t.description || '')}</p>
+      ${fs.map(f => labelled(t.name, f, sample)).join('')}
+    </div>
+  </details>`;
+};
+
+// Put the answer where the eye is. The output card sits below every tool row, which on
+// a phone means a run you cannot see: eleven rows is more than a screen.
+function showOutput() {
+  const box = $('out').closest('.chit').getBoundingClientRect();
+  if (box.top < 0 || box.bottom > window.innerHeight) {
+    $('out').closest('.chit').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 }
-$('pick').onchange = () => load($('pick').value);
-load(slugs[0]);
+
+async function load(index) {
+  const page = PAGES[index];
+  $('reg').textContent = 'loading ' + page.label;
+  $('tools').innerHTML = '';
+  $('out').textContent = 'Pick a tool above.';
+  $('outNote').textContent = '';
+
+  const frame = $('frame');
+  const ready = new Promise(r => { frame.onload = r; });
+  frame.src = page.url;
+  await ready;
+
+  const tools = await settle(frame.contentWindow);
+  // Three states, and they are not interchangeable: a local registry to read, a real
+  // WebMCP whose list belongs to the browser, or no registry at all — which means the
+  // page's own script never got that far. Reporting the third as the second is how a
+  // broken page reads as a working one.
+  const mc = frame.contentWindow.document.modelContext;
+  const where = !mc ? 'no registry — that page did not finish loading'
+    : mc.shimmed ? 'local registry'
+    : 'real WebMCP present — the browser owns the list';
+  $('reg').textContent = `${tools.length} tool${tools.length === 1 ? '' : 's'} · ${where}`;
+
+  if (!tools.length) {
+    $('tools').innerHTML = `<p class="m-0 text-[13px] text-ink-mute">${
+      mc ? 'That page registered no tools.'
+         : 'That page did not register anything — open it directly to see what went wrong.'}</p>`;
+    return;
+  }
+
+  $('tools').innerHTML = tools.map(row).join('');
+
+  $('tools').querySelectorAll('[data-run]').forEach(btn => {
+    btn.onclick = async e => {
+      // the button lives inside the <summary>, so a click here would also toggle the row
+      e.preventDefault();
+      e.stopPropagation();
+      const name = btn.dataset.run;
+      const tool = tools.find(t => t.name === name);
+      const box = btn.closest('[data-tool]');
+      const input = {};
+      $('outNote').textContent = name;
+      try {
+        box.querySelectorAll('[data-f]').forEach(el => {
+          const v = readValue(el);
+          if (v !== undefined) input[el.dataset.f] = v;
+        });
+      } catch (e) {
+        $('out').textContent = JSON.stringify({ tool: name, badInput: String(e) }, null, 2);
+        showOutput();
+        return;
+      }
+      try {
+        const res = await tool.execute(input);
+        const text = res?.content?.[0]?.text;
+        $('out').textContent = JSON.stringify(
+          { tool: name, input, output: text ? JSON.parse(text) : res }, null, 2).slice(0, 20000);
+        showOutput();
+      } catch (e) {
+        // A tool that throws is a finding, not a crash: show it rather than swallow it.
+        $('out').textContent = JSON.stringify({ tool: name, input, threw: String(e) }, null, 2);
+        showOutput();
+      }
+    };
+  });
+}
+
+$('pick').onchange = () => load(Number($('pick').value));
+load(0);
 </script>
 </body>
 </html>

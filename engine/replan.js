@@ -110,7 +110,15 @@ export function diffOccasion(before = {}, after = {}) {
   return changes;
 }
 
-export function describeOccasionChange(changes) {
-  if (!changes.length) return 'Nothing in the description changed.';
-  return 'Read again: ' + changes.map(c => `${c.label} ${c.from} -> ${c.to}`).join(', ') + '.';
+// `unread` is what the parser saw but no field claimed. Saying so matters most when
+// nothing else moved: a description that gained "feed 5 dogs too" and came back with
+// "nothing changed" was reporting a limit as a fact.
+export function describeOccasionChange(changes, unread = []) {
+  const left = unread.length ? ` Not read: ${unread.join(', ')}.` : '';
+  if (!changes.length) {
+    return (unread.length
+      ? 'Nothing the planner reads changed.'
+      : 'Nothing in the description changed.') + left;
+  }
+  return 'Read again: ' + changes.map(c => `${c.label} ${c.from} -> ${c.to}`).join(', ') + '.' + left;
 }

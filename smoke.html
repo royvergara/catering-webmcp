@@ -48,6 +48,7 @@
 </main>
 
 <script type="module">
+import { toolHost } from '/shared/webmcp.js';
 import { mountHeader } from '/shared/ui.js';
 mountHeader('Smoke test');
 
@@ -59,11 +60,21 @@ const log = (name, input, output) => {
   logEl.textContent = JSON.stringify(calls, null, 2);
 };
 
-if (document.modelContext?.registerTool) {
+// The tools register either way — /harness.html fires them by hand from the local
+// registry. What changes is only whether an agent can discover them, and this page
+// exists to say which of those two worlds you are in.
+const mc = toolHost();
+if (mc.shimmed) {
+  statusEl.textContent = 'WebMCP not available in this browser, so nothing here is discoverable by an agent. '
+    + 'Enable the flag, or use the ChatGPT in-app browser. Both tools are still registered and can be fired from /harness.html.';
+  statusEl.style.color = 'var(--short)';
+} else {
   statusEl.textContent = 'WebMCP available. Two tools registered.';
   statusEl.style.color = 'var(--covered)';
+}
 
-  document.modelContext.registerTool({
+{
+  mc.registerTool({
     name: 'ping',
     description: 'Echo a message back. Verifies WebMCP tool discovery and invocation.',
     inputSchema: { type: 'object', properties: { message: { type: 'string' } }, required: ['message'] },
@@ -74,7 +85,7 @@ if (document.modelContext?.registerTool) {
     }
   });
 
-  document.modelContext.registerTool({
+  mc.registerTool({
     name: 'get_page_facts',
     description: 'Return basic facts about this page, to verify multi-tool discovery.',
     inputSchema: { type: 'object', properties: {} },
@@ -84,9 +95,6 @@ if (document.modelContext?.registerTool) {
       return { content: [{ type: 'text', text: JSON.stringify(out) }] };
     }
   });
-} else {
-  statusEl.textContent = 'WebMCP not available in this browser. Enable the flag, or use the ChatGPT in-app browser.';
-  statusEl.style.color = 'var(--short)';
 }
 </script>
 </body>

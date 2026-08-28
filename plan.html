@@ -148,6 +148,7 @@ window.addEventListener('unhandledrejection', e => {
 import { parseOccasion, assemblePlan, revisePlan, replan, buildOptions, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
 import { runChecks } from '/engine/engine.js';
 import { CHECKS as CHECK_LABELS } from '/engine/replan.js';
+import { toolHost } from '/shared/webmcp.js';
 import { mountHeader, badge, tierBadge, money, label, esc } from '/shared/ui.js';
 
 mountHeader('Planner');
@@ -448,10 +449,19 @@ function announce(action, plan, { rebuilt = true } = {}) {
   const checks = Object.keys(CHECK_LABELS).length;
   const blockers = plan.findings.filter(f => f.severity === 'blocker').length;
   const found = blockers === 0 ? 'No blockers.' : blockers === 1 ? '1 blocker on it.' : `${blockers} blockers on it.`;
-  els.runNote.textContent = rebuilt
+  // Anything in the description no field claimed is named here rather than dropped.
+  // The parser is shallow on purpose — an agent calling plan_meal has already done
+  // the language work — but a shallow reader that stays quiet is just a wrong one.
+  const unread = (plan.occasion || {}).unread || [];
+  const said = rebuilt
     ? `${action} — read ${vendors.length} vendor sources, composed ${options.length} option${
         options.length === 1 ? '' : 's'}, ran ${checks} checks. ${found}`
     : `${action}. ${found}`;
+  // Darker than the line it sits on, because it is the one part of that line the
+  // reader has to act on. The text came from the textarea, so it is escaped.
+  els.runNote.innerHTML = esc(said) + (unread.length
+    ? ` <span class="text-ink">Not read: ${esc(unread.join(', '))}.</span>`
+    : '');
   els.runNote.classList.remove('flash');
   void els.runNote.offsetWidth;          // restart the animation on a repeat run
   els.runNote.classList.add('flash');
@@ -498,16 +508,20 @@ function negotiate(constraint, idx) {
     </div>`;
 }
 
-function run() {
+// `given` is what a caller already knew — plan_meal's structured fields. It applies to
+// the run that supplied it and no further: like a parsed value and unlike a confirmed
+// one, it is re-derived each time. If it should stick, it is confirmed on the page,
+// through the same mechanism as everything else.
+function run(given = {}) {
   try {
-    const occasion = parseOccasion(els.q.value);
+    const occasion = parseOccasion(els.q.value, given);
     // anything already confirmed survives a re-plan
     const carried = { assumptions: current?.assumptions || [] };
     options = buildOptions(occasion, vendors, els.lvl.value, carried);
     const top = options.find(o => o.recommended);
     chosenId = top ? top.id : null;
     const plan = top ? top.plan : assemblePlan(occasion, vendors, els.lvl.value, carried);
-    log('plan_meal', { description: els.q.value, service_level: els.lvl.value },
+    log('plan_meal', { description: els.q.value, service_level: els.lvl.value, ...given },
         { headcount: occasion.headcount, dietary: occasion.dietary,
           options: options.map(o => o.summary), findings: plan.findings.length });
     render(plan);
@@ -538,18 +552,38 @@ try {
   els.statusLine.textContent = 'vendor data failed to load';
 }
 
-if (vendors.length && document.modelContext?.registerTool) {
+if (vendors.length) {
+  const mc = toolHost();
   const reg = (name, description, inputSchema, fn) =>
-    document.modelContext.registerTool({ name, description, inputSchema,
+    mc.registerTool({ name, description, inputSchema,
       execute: async (input) => {
         const out = fn(input || {});
         log(name, input, out);
         return { content: [{ type: 'text', text: JSON.stringify(out) }] };
       }});
 
-  reg('plan_meal', 'Turn a plain description of an occasion into a need list: headcount, budget, dietary groups and venue constraints.',
-    { type:'object', properties:{ description:{type:'string'} }, required:['description'] },
-    ({ description }) => { els.q.value = description; const p = run(); return { occasion: p.occasion, demand: p.basket.demand }; });
+  reg('plan_meal',
+    'Turn an occasion into a need list: headcount, budget, dietary groups, venue constraints. '
+    + 'Pass whatever you already understood as fields — they are taken as stated and outrank anything '
+    + 'read from `description`, whose reader is deliberately shallow. Returns `given` (fields you supplied), '
+    + '`found` (what is known rather than assumed) and `unread` (quantities in the description no field claimed). '
+    + 'With no arguments it re-plans whatever the page currently holds.',
+    { type:'object', properties:{
+        description:{ type:'string', description:'the occasion in plain words; optional if you pass the fields' },
+        headcount:{ type:'integer', description:'how many people are eating' },
+        budget:{ type:'number', description:'total to spend, in dollars' },
+        dietary:{ type:'object', description:'guest counts by group, e.g. {"vegetarian":6,"gluten_free":2}' },
+        venue_has_kitchen:{ type:'boolean' },
+        duration_hours:{ type:'number', description:'how long food is served for' },
+        service_level:{ type:'string', enum:['pickup','delivery','dropoff_setup'] }
+      } },
+    ({ description, headcount, budget, dietary, venue_has_kitchen, duration_hours, service_level }) => {
+      if (description !== undefined) els.q.value = description;
+      if (service_level) els.lvl.value = service_level;
+      const p = run({ headcount, budget, dietary,
+                      venueHasKitchen: venue_has_kitchen, durationHours: duration_hours });
+      return { occasion: p.occasion, demand: p.basket.demand };
+    });
 
   reg('build_basket', 'Compose an order across vendors covering every dietary group and the total volume, with the arithmetic behind each quantity.',
     { type:'object', properties:{ service_level:{type:'string', enum:['pickup','delivery','dropoff_setup']} } },
@@ -605,8 +639,11 @@ if (vendors.length && document.modelContext?.registerTool) {
       const before = current || run();
       const after = revisePlan(before, vendors, assumption, value);
       render(after); status(after);
+      // Report what was stored, not what was asked for: the value is coerced on the way
+      // in, so echoing the raw input tells the caller "60" when the plan holds 60.
+      const stored = after.assumptions.find(a => a.id === assumption);
       return {
-        assumption, value,
+        assumption, value: stored ? stored.value : value,
         subtotal: after.basket.subtotal,
         items: after.basket.items.length,
         findings: after.findings

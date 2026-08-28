@@ -12,7 +12,10 @@ export const ASSUMPTION_DEFAULTS = {
 };
 
 // How much to trust a value by where it came from.
-export const CONFIDENCE = { default: 0.6, vendor: 0.7, parsed: 0.8, user: 1 };
+// `given` outranks `parsed`: a field the caller passed was understood before it got
+// here, rather than recovered from prose by a deliberately shallow reader. It still
+// sits below `user`, which is a person saying so on the page.
+export const CONFIDENCE = { default: 0.6, vendor: 0.7, parsed: 0.8, given: 0.9, user: 1 };
 
 // ---------- immutable path helpers ----------
 function getPath(obj, path) {
@@ -55,10 +58,10 @@ export function deriveAssumptions(occasion, basket = { items: [] }) {
   // A value the parser did not actually find is a default wearing a parsed value's
   // clothes. Say which it is, so the person can see what was never really stated.
   const read = field => occasion.found?.[field] !== false;
-  const from = (field, stated, assumed) => ({
-    source: read(field) ? 'parsed' : 'default',
-    basis: read(field) ? stated : assumed
-  });
+  const gave = field => (occasion.given || []).includes(field);
+  const from = (field, stated, assumed) => (gave(field)
+    ? { source: 'given', basis: 'supplied by the caller, not read from the description' }
+    : { source: read(field) ? 'parsed' : 'default', basis: read(field) ? stated : assumed });
 
   const out = [
     record('occasion.headcount', 'Headcount', occasion.headcount, {
@@ -89,13 +92,13 @@ export function deriveAssumptions(occasion, basket = { items: [] }) {
 
   for (const [group, count] of Object.entries(occasion.dietary || {})) {
     out.push(record(`occasion.dietary.${group}`, `${group.replace(/_/g, ' ')} guests`, count, {
-      unit: 'guests', field: `dietary.${group}`, source: 'parsed',
+      unit: 'guests', field: `dietary.${group}`, source: gave('dietary') ? 'given' : 'parsed',
       basis: 'counted from your description'
     }));
   }
 
   out.push(record('occasion.venueHasKitchen', 'Kitchen at the venue', !!occasion.venueHasKitchen, {
-    field: 'venueHasKitchen', source: 'parsed',
+    field: 'venueHasKitchen', source: gave('venueHasKitchen') ? 'given' : 'parsed',
     basis: 'inferred from your description'
   }));
 

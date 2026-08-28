@@ -118,6 +118,28 @@ summary.btn::after{ content:"\25B8"; margin-left:.1rem; color:var(--ink-mute); }
 details[open] > summary.btn::after{ content:"\25BE"; }
 summary.btn:focus-visible{ outline:2px solid var(--carbon); outline-offset:2px; }
 
+/* --- tool harness rows ---
+   One line per tool: the name, how many arguments it takes, and a button that fires
+   it with what it already holds. The description and every input live behind the row.
+   Rendering all of them at once made eleven tools read as a page of blank form, and
+   the two boolean selects showed only "—", naming neither argument. */
+.toolrow{ border:1px solid var(--rule); border-radius:var(--radius-chit); background:var(--paper-card); }
+.toolsum{
+  display:flex; align-items:center; gap:.6rem; cursor:pointer;
+  padding:.5rem .6rem; list-style:none;
+}
+.toolsum::-webkit-details-marker{ display:none; }
+/* the marker leads here rather than trails, so the names stay left-aligned to scan */
+.toolsum::before{ content:"\25B8"; color:var(--ink-mute); font-size:.8rem; }
+details[open] > .toolsum::before{ content:"\25BE"; }
+.toolsum:hover{ background:var(--paper-sunk); }
+.toolsum:focus-visible{ outline:2px solid var(--carbon); outline-offset:-2px; }
+.toolsum-note{ font-family:var(--font-mono); font-size:.7rem; color:var(--ink-mute); }
+.toolbody{ padding:.1rem .6rem .7rem; border-top:1px solid var(--rule); }
+/* the exception is worth marking; on a tool where every field is optional,
+   saying so on each one is noise that reads as a demand */
+.required{ color:var(--short); letter-spacing:0; }
+
 /* --- data readout --- */
 .readout{
   background:var(--readout); color:var(--readout-ink); border-radius:var(--radius-chit); padding:.75rem;
