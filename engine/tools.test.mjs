@@ -95,3 +95,49 @@ test('holds are never binding', () => {
     assert.equal(t.run({ date: '2026-09-12' }).binding, false);
   }
 });
+
+// ---------- reachability ----------
+// A tool nobody can call is a tool nobody can judge. These guard the thing that fails
+// silently in a browser: a page that registers nothing unless the browser happens to
+// have WebMCP, which is almost no browser, and a harness that then shows an empty list.
+
+const PAGES_WITH_TOOLS = ['vendor.html', 'plan.html', 'gradient.html', 'smoke.html'];
+const page = f => readFileSync(f, 'utf8');
+
+test('every page registers its tools whether or not the browser has WebMCP', () => {
+  for (const f of PAGES_WITH_TOOLS) {
+    const src = page(f);
+    assert.match(src, /import \{ toolHost \} from '\/shared\/webmcp\.js'/, `${f} does not import toolHost`);
+    assert.match(src, /toolHost\(\)/, `${f} never calls toolHost`);
+    // the old shape: register only if the browser already provides a modelContext
+    assert.doesNotMatch(src, /if \([^)]*document\.modelContext\?\.registerTool\)/,
+      `${f} still registers only when WebMCP is present, so /harness.html sees nothing`);
+  }
+});
+
+test('the harness offers every page that registers tools', () => {
+  const h = page('harness.html');
+  for (const f of PAGES_WITH_TOOLS) {
+    assert.ok(h.includes(`/${f}`), `harness.html never loads ${f}`);
+  }
+  // and every vendor, since each publishes its own data through the same five tools
+  for (const v of vendors) {
+    assert.ok(h.includes(v.slug) || /SLUGS/.test(h), `harness.html cannot reach ${v.slug}`);
+  }
+});
+
+test('the harness reads the registry rather than rebuilding the tools', () => {
+  const h = page('harness.html');
+  // rebuilding meant it exercised a copy: five vendor tools, and never the other seventeen
+  assert.doesNotMatch(h, /buildVendorTools/,
+    'harness.html rebuilds vendor tools instead of reading what the page registered');
+  assert.match(h, /document\.modelContext/, 'harness.html never reads a page registry');
+});
+
+test('toolHost stands in only when there is nothing to stand in for', async () => {
+  const src = readFileSync('shared/webmcp.js', 'utf8');
+  // the shim must be marked, because "no registry at all" and "a real one" are
+  // different states and the harness reports them differently
+  assert.match(src, /shimmed: true/);
+  assert.match(src, /document\.modelContext\?\.registerTool/);
+});

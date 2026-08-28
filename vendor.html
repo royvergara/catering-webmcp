@@ -51,6 +51,7 @@
 
 <script type="module">
 import { buildVendorTools } from '/shared/vendor-tools.js';
+import { toolHost } from '/shared/webmcp.js';
 import { mountHeader, tierBadge, money, label, esc } from '/shared/ui.js';
 
 mountHeader('Vendor site');
@@ -114,9 +115,10 @@ const log = (n, i, o) => {
   $('log').textContent = JSON.stringify(calls, null, 2);
 };
 
-if (document.modelContext?.registerTool) {
+{
+  const mc = toolHost();
   for (const t of buildVendorTools(v)) {
-    document.modelContext.registerTool({
+    mc.registerTool({
       name: t.name, description: t.description, inputSchema: t.inputSchema,
       execute: async (input) => {
         const out = t.run(input);
@@ -125,8 +127,12 @@ if (document.modelContext?.registerTool) {
       }
     });
   }
-} else {
-  $('log').textContent = 'WebMCP not available in this browser. Use /harness.html to fire the same tools by hand.';
+  // The tools are registered either way. Only discovery needs a WebMCP browser, and
+  // saying which of the two you are in is the honest thing for the log to open with.
+  $('log').textContent = mc.shimmed
+    ? 'No WebMCP in this browser, so an agent cannot discover these. '
+      + `${buildVendorTools(v).length} tools are registered and can be fired by hand from /harness.html.`
+    : `${buildVendorTools(v).length} tools registered. No calls yet.`;
 }
 }   // end: a vendor was found
 </script>

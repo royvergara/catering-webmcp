@@ -148,6 +148,7 @@ window.addEventListener('unhandledrejection', e => {
 import { parseOccasion, assemblePlan, revisePlan, replan, buildOptions, ownershipTable, explainQuantity, naiveBasket } from '/shared/plan.js';
 import { runChecks } from '/engine/engine.js';
 import { CHECKS as CHECK_LABELS } from '/engine/replan.js';
+import { toolHost } from '/shared/webmcp.js';
 import { mountHeader, badge, tierBadge, money, label, esc } from '/shared/ui.js';
 
 mountHeader('Planner');
@@ -547,9 +548,10 @@ try {
   els.statusLine.textContent = 'vendor data failed to load';
 }
 
-if (vendors.length && document.modelContext?.registerTool) {
+if (vendors.length) {
+  const mc = toolHost();
   const reg = (name, description, inputSchema, fn) =>
-    document.modelContext.registerTool({ name, description, inputSchema,
+    mc.registerTool({ name, description, inputSchema,
       execute: async (input) => {
         const out = fn(input || {});
         log(name, input, out);
@@ -614,8 +616,11 @@ if (vendors.length && document.modelContext?.registerTool) {
       const before = current || run();
       const after = revisePlan(before, vendors, assumption, value);
       render(after); status(after);
+      // Report what was stored, not what was asked for: the value is coerced on the way
+      // in, so echoing the raw input tells the caller "60" when the plan holds 60.
+      const stored = after.assumptions.find(a => a.id === assumption);
       return {
-        assumption, value,
+        assumption, value: stored ? stored.value : value,
         subtotal: after.basket.subtotal,
         items: after.basket.items.length,
         findings: after.findings

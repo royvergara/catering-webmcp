@@ -89,6 +89,7 @@ window.addEventListener('unhandledrejection', e => {
 import {
   TIERS, CAPABILITIES, can, readT0, readT1, readT2, readT3, draftInquiry, askEveryTier
 } from '/engine/adapters.js';
+import { toolHost } from '/shared/webmcp.js';
 import { mountHeader, badge, tierBadge, money, esc } from '/shared/ui.js';
 
 mountHeader('Source gradient');
@@ -247,9 +248,10 @@ try {
   els.statusLine.textContent = 'sources failed to load';
 }
 
-if (Object.keys(readings).length && document.modelContext?.registerTool) {
+if (Object.keys(readings).length) {
+  const mc = toolHost();
   const reg = (name, description, inputSchema, fn) =>
-    document.modelContext.registerTool({ name, description, inputSchema,
+    mc.registerTool({ name, description, inputSchema,
       execute: async (input) => {
         const out = fn(input || {});
         log(name, input, out);
