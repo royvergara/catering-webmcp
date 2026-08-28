@@ -161,3 +161,26 @@ test('the harness renders every type plan_meal declares', () => {
   }
   assert.match(h, /JSON\.parse\(raw\)/, 'harness.html never parses an object input');
 });
+
+test('the harness opens as a list, not a page of form', () => {
+  const h = page('harness.html');
+  // every tool is a closed row; the inputs are behind it. Rendering all of them at
+  // once made eleven tools read as a wall nobody would fill in.
+  assert.match(h, /<details data-tool=/, 'tool rows are not collapsible');
+  assert.doesNotMatch(h, /<details data-tool="\$\{esc\(t\.name\)\}" open/, 'tool rows start open');
+  // and Run must not toggle the row it sits in
+  assert.match(h, /e\.stopPropagation\(\)/, 'the Run button would toggle its own row');
+});
+
+test('every harness control is labelled, and only required ones are marked', () => {
+  const h = page('harness.html');
+  assert.match(h, /<label for="in-\$\{tool\}-\$\{esc\(f\.name\)\}"/, 'controls are not labelled');
+  // on plan_meal every field is optional, so marking each one said nothing and read
+  // as a demand; the exception is what carries information
+  assert.match(h, /f\.required \? ' <span class="required">required<\/span>' : ''/);
+});
+
+test('a prose argument gets room to be read', () => {
+  const h = page('harness.html');
+  assert.match(h, /<textarea/, 'a long string argument is still a one-line input');
+});

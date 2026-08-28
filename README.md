@@ -65,11 +65,12 @@ and which it merely **assumed**.
 ## Try it
 
 **No special browser needed.** [`/harness.html`](https://catering-webmcp.vercel.app/harness.html)
-loads each page in turn and fires the tools that page registered — all **22**, with a field
-per schema property, on a phone included. Where a browser has no `document.modelContext`, the
-pages keep the same tools in a local registry and the harness reads that, so what you fire is
-the page's own tool closed over the page's own state, not a copy. Covers everything except
-discovery.
+loads each page in turn and fires the tools that page registered — all **22**, on a phone
+included. One row per tool: its name, how many arguments it takes, and a **Run** button that
+fires it with sensible defaults. Open a row for the full description and a labelled field per
+schema property. Where a browser has no `document.modelContext`, the pages keep the same tools
+in a local registry and the harness reads that, so what you fire is the page's own tool closed
+over the page's own state, not a copy. Covers everything except discovery.
 
 **With real WebMCP** — the ChatGPT in-app browser, or **desktop** Chrome 149+ with
 `chrome://flags/#enable-webmcp-testing`:
@@ -122,7 +123,7 @@ below T0 can act**.
 ## Testing
 
 ```bash
-npm test      # 181 tests. No browser, no dependencies.
+npm test      # 184 tests. No browser, no dependencies.
 npm run dev   # http://localhost:8080
 ```
 
@@ -160,7 +161,7 @@ engine/trust.js       vendor text is data: field allowlist + injection quarantin
 engine/options.js     two or three orders, ranked and described by tradeoff
 engine/adapters.js    read a business at T0–T4; what each tier can and cannot answer
 engine/schedule.js    when each job has to happen, in the event's own clock
-engine/*.test.mjs     181 tests
+engine/*.test.mjs     184 tests
 
 shared/webmcp.js      where a page's tools go: real WebMCP, or a local registry
 shared/plan.js        parse, compose, explain the arithmetic, ownership table

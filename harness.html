@@ -23,9 +23,9 @@
     </div>
     <h1>Call any tool by hand, in any browser</h1>
     <p class="lede">
-      Every tool on this site, fired against the page that registers it. Where a browser has no
-      <code class="font-mono text-[15px] bg-paper-sunk px-1">document.modelContext</code>, the pages keep the
-      same tools in a local registry and this reads that. Covers everything except discovery.
+      Every tool on this site, fired against the page that registers it. No agent, no special
+      browser — where there is no <code class="font-mono text-[15px] bg-paper-sunk px-1">document.modelContext</code>,
+      the pages keep the same tools in a local registry and this reads that.
     </p>
   </div>
 
@@ -135,9 +135,25 @@ const control = (tool, f, value) => {
   if (f.type === 'enum') return pick(f.required ? f.values : ['', ...f.values]);
   // unset is a real third state: a boolean nobody set is not a false one
   if (f.type === 'boolean') return pick(['', 'true', 'false']);
+  // Prose needs room to be read, not a one-line box that hides most of the sentence
+  // behind its own right edge. Anything seeded long enough to be a sentence gets it.
+  if (f.type === 'text' && v.length > 40) {
+    return `<textarea id="${id}" data-f="${esc(f.name)}" data-t="text" rows="3"` +
+      ` class="field font-mono text-[13px]">${esc(v)}</textarea>`;
+  }
   return `<input id="${id}" data-f="${esc(f.name)}" data-t="${f.type}" class="field text-[13px] py-1" value="${esc(v)}"` +
-    ` placeholder="${esc(f.hint || f.name)}${f.required ? '' : ' (optional)'}">`;
+    ` placeholder="${esc(f.hint || f.name)}">`;
 };
+
+// Every control is labelled. Two of these were bare selects reading "—", which told
+// nobody which argument they set.
+const labelled = (tool, f, sample) => `
+  <div class="mt-2">
+    <label for="in-${tool}-${esc(f.name)}" class="block font-mono text-[11px] uppercase tracking-[.12em] text-ink-mute mb-1">
+      ${esc(f.name.replace(/_/g, ' '))}${f.required ? ' <span class="required">required</span>' : ''}
+    </label>
+    ${control(tool, f, sample[f.name])}
+  </div>`;
 
 const readValue = el => {
   const raw = el.value.trim();
@@ -148,6 +164,36 @@ const readValue = el => {
   if (el.dataset.t === 'object') return JSON.parse(raw);   // a bad object is the caller's error, and is shown as one
   return raw;
 };
+
+// One row per tool: the name, and a button that fires it with what it already holds.
+// Everything else — the full description and every argument — is behind the row, so
+// eleven tools read as eleven lines rather than a page of empty form. A tool can be
+// run without ever opening it, which is the common case.
+const row = t => {
+  const fs = fields(t.inputSchema);
+  const sample = SAMPLES[t.name] || {};
+  const first = (t.description || '').split(/(?<=\.)\s/)[0];
+  return `<details data-tool="${esc(t.name)}" class="toolrow">
+    <summary class="toolsum">
+      <span class="font-mono text-[14px] text-ink">${esc(t.name)}</span>
+      <span class="toolsum-note">${fs.length ? `${fs.length} argument${fs.length === 1 ? '' : 's'}` : 'no arguments'}</span>
+      <button class="btn btn-quiet ml-auto" data-run="${esc(t.name)}">Run</button>
+    </summary>
+    <div class="toolbody">
+      <p class="m-0 text-[13px] text-ink-mute">${esc(t.description || '')}</p>
+      ${fs.map(f => labelled(t.name, f, sample)).join('')}
+    </div>
+  </details>`;
+};
+
+// Put the answer where the eye is. The output card sits below every tool row, which on
+// a phone means a run you cannot see: eleven rows is more than a screen.
+function showOutput() {
+  const box = $('out').closest('.chit').getBoundingClientRect();
+  if (box.top < 0 || box.bottom > window.innerHeight) {
+    $('out').closest('.chit').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
 
 async function load(index) {
   const page = PAGES[index];
@@ -179,20 +225,13 @@ async function load(index) {
     return;
   }
 
-  $('tools').innerHTML = tools.map(t => {
-    const fs = fields(t.inputSchema);
-    const sample = SAMPLES[t.name] || {};
-    return `<div data-tool="${esc(t.name)}">
-      <div class="flex flex-wrap items-center gap-2">
-        <button class="btn btn-quiet font-mono" data-run="${esc(t.name)}">${esc(t.name)}</button>
-        ${fs.map(f => control(t.name, f, sample[f.name])).join('')}
-      </div>
-      <p class="m-0 mt-1 text-[13px] text-ink-mute">${esc(t.description || '')}</p>
-    </div>`;
-  }).join('');
+  $('tools').innerHTML = tools.map(row).join('');
 
   $('tools').querySelectorAll('[data-run]').forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = async e => {
+      // the button lives inside the <summary>, so a click here would also toggle the row
+      e.preventDefault();
+      e.stopPropagation();
       const name = btn.dataset.run;
       const tool = tools.find(t => t.name === name);
       const box = btn.closest('[data-tool]');
@@ -205,6 +244,7 @@ async function load(index) {
         });
       } catch (e) {
         $('out').textContent = JSON.stringify({ tool: name, badInput: String(e) }, null, 2);
+        showOutput();
         return;
       }
       try {
@@ -212,9 +252,11 @@ async function load(index) {
         const text = res?.content?.[0]?.text;
         $('out').textContent = JSON.stringify(
           { tool: name, input, output: text ? JSON.parse(text) : res }, null, 2).slice(0, 20000);
+        showOutput();
       } catch (e) {
         // A tool that throws is a finding, not a crash: show it rather than swallow it.
         $('out').textContent = JSON.stringify({ tool: name, input, threw: String(e) }, null, 2);
+        showOutput();
       }
     };
   });
