@@ -236,8 +236,12 @@ function render(plan) {
             <span class="font-mono text-[11px] uppercase tracking-[.1em] text-ink-mute">${f.check}</span>
           </div>
           <p class="m-0 text-[15px]">${esc(f.message)}</p>
-          <button data-c="${f.check}" data-i="${idx}" class="btn btn-quiet js-negotiate mt-2">What can be done</button>
-          <div id="opt-${idx}"></div>
+          <!-- a real disclosure, so it closes again: the answer used to appear and
+               then stay, with no way back to the shorter list of findings -->
+          <details class="js-negotiate mt-2" data-c="${f.check}" data-i="${idx}">
+            <summary class="btn btn-quiet">What can be done</summary>
+            <div id="opt-${idx}"></div>
+          </details>
         </div>`).join('')
     : `<p class="m-0 text-[15px] text-covered">Nothing outstanding. Everyone is covered and every job has an owner.</p>`;
 
@@ -254,8 +258,14 @@ function render(plan) {
       <span class="row-num ${r.who === 'You' ? 'font-semibold' : 'text-ink-mute'}">${esc(r.who)}</span>
     </div>`).join('');
 
-  els.findings.querySelectorAll('.js-negotiate').forEach(b => {
-    b.onclick = () => negotiate(b.dataset.c, b.dataset.i);
+  // Ask the vendors the first time it is opened, not on every toggle: reopening is
+  // a reader looking again, not a new question, and it should not re-log a call.
+  els.findings.querySelectorAll('.js-negotiate').forEach(d => {
+    d.addEventListener('toggle', () => {
+      if (!d.open || d.dataset.asked) return;
+      d.dataset.asked = '1';
+      negotiate(d.dataset.c, d.dataset.i);
+    });
   });
 }
 
@@ -476,7 +486,7 @@ function negotiate(constraint, idx) {
   for (const v of vendors) for (const a of v.accommodations || []) if (a.for === constraint) options.push({ vendor: v.name, ...a });
   log('negotiate', { constraint }, options);
   $(`opt-${idx}`).innerHTML = `
-    <div class="mt-2 border-l-2 border-carbon pl-3">
+    <div class="border-l-2 border-carbon pl-3">
       <p class="font-mono text-[11px] uppercase tracking-[.1em] text-carbon m-0 mb-1">What each vendor can do</p>
       ${options.length ? options.map(o => `
         <div class="row">

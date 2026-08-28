@@ -109,6 +109,14 @@ input:where(.field), select:where(.field), textarea:where(.field){
 .btn:focus-visible{ outline:2px solid var(--carbon); outline-offset:2px; }
 .btn-quiet{ background:var(--paper-card); color:var(--ink); border-color:var(--rule-strong); font-weight:600; padding:.3rem .55rem; font-size:.8rem; }
 .btn-quiet:hover{ background:var(--paper-sunk); }
+/* A summary styled as a button. The default disclosure triangle is suppressed and
+   replaced with the same ▸ the nav panel uses, so the control says which way it
+   goes — the answer used to appear and stay, with no way back. */
+summary.btn{ list-style:none; }
+summary.btn::-webkit-details-marker{ display:none; }
+summary.btn::after{ content:"\25B8"; margin-left:.1rem; color:var(--ink-mute); }
+details[open] > summary.btn::after{ content:"\25BE"; }
+summary.btn:focus-visible{ outline:2px solid var(--carbon); outline-offset:2px; }
 
 /* --- data readout --- */
 .readout{
