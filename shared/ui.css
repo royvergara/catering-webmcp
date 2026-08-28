@@ -1,14 +1,10 @@
-/* Component layer. Utilities do layout; these carry identity. */
-:root{
-  --ink:#10131A; --ink-soft:#3A424F; --ink-mute:#6B7480;
-  --paper:#F2F4F7; --card:#fff; --sunk:#E7EAEF;
-  --rule:#D9DEE5; --rule-strong:#B9C1CC;
-  --carbon:#1F3FD4; --carbon-soft:#E8ECFC;
-  --tape:#FFD94A; --tape-soft:#FFF6D1;
-  --short:#B8271F; --short-soft:#FBE9E8;
-  --watch:#8A5B00; --watch-soft:#FBF0DA;
-  --covered:#0F6B4F; --covered-soft:#E2F2EC;
-}
+/* Component layer. Utilities do layout; these carry identity.
+
+   Every colour, face, radius and shadow below comes from a custom property that
+   tailwind.config.js emits into the generated stylesheet. Nothing here restates a
+   token value, so the utilities and the components cannot drift — which they did,
+   the last time the palette was written down in both places.
+   engine/styles.test.mjs fails on a raw hex or a literal font stack in this file. */
 html{ -webkit-text-size-adjust:100%; }
 /* Paper. The ruling was loud enough to read as a grid over the text; it should
    read as the stock the sheet is printed on. So: the rules drop to a whisper,
@@ -21,8 +17,8 @@ html{ -webkit-text-size-adjust:100%; }
 }
 body{
   background-color:var(--paper); color:var(--ink);
-  font-family:"IBM Plex Sans",system-ui,sans-serif;
-  background-image:var(--grain), linear-gradient(rgba(185,193,204,.16) 1px,transparent 1px);
+  font-family:var(--font-sans);
+  background-image:var(--grain), linear-gradient(var(--rule-faint) 1px,transparent 1px);
   background-size:180px 180px, 100% 34px;
   background-position:0 0, 0 -1px;
 }
@@ -36,27 +32,27 @@ body{
 .chit{
   /* the same stock as the sheet, one shade brighter and a lighter tooth — set as
      longhand because the `background:` shorthand would wipe the image out */
-  background-color:var(--card); background-image:var(--grain-soft);
-  border:1px solid var(--rule); border-radius:2px;
-  box-shadow:0 1px 0 var(--rule), 0 6px 18px -14px rgba(16,19,26,.4);
+  background-color:var(--paper-card); background-image:var(--grain-soft);
+  border:1px solid var(--rule); border-radius:var(--radius-chit);
+  box-shadow:var(--shadow-chit);
 }
 .chit-head{
   display:flex; align-items:baseline; gap:.6rem;
   padding:.65rem .9rem; border-bottom:1px solid var(--rule);
-  background:linear-gradient(180deg,#fff, #FAFBFC);
+  background:linear-gradient(180deg,var(--paper-card),var(--paper-head));
 }
 .chit-title{
-  font-family:"IBM Plex Sans",system-ui,sans-serif; font-weight:600;
+  font-family:var(--font-sans); font-weight:600;
   font-size:.78rem; letter-spacing:.12em; text-transform:uppercase; color:var(--ink-soft);
 }
-.chit-note{ font-family:"IBM Plex Mono",monospace; font-size:.7rem; color:var(--ink-mute); margin-left:auto; }
+.chit-note{ font-family:var(--font-mono); font-size:.7rem; color:var(--ink-mute); margin-left:auto; }
 .chit-body{ padding:.9rem; }
 
 /* --- perforated edge: used once, on the plan ticket --- */
 .perf{ position:relative; }
 .perf::after{
   content:""; position:absolute; left:0; right:0; bottom:-9px; height:9px;
-  background:radial-gradient(circle at 6px 0, transparent 5px, var(--card) 5px) repeat-x;
+  background:radial-gradient(circle at 6px 0, transparent 5px, var(--paper-card) 5px) repeat-x;
   background-size:12px 9px;
   filter:drop-shadow(0 1px 0 var(--rule));
 }
@@ -65,7 +61,7 @@ body{
 .row{ display:flex; gap:.75rem; align-items:baseline; padding:.5rem 0; border-bottom:1px dotted var(--rule); }
 .row:last-child{ border-bottom:0; }
 .row-name{ flex:1; min-width:0; }
-.row-num{ font-family:"IBM Plex Mono",monospace; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.row-num{ font-family:var(--font-mono); font-variant-numeric:tabular-nums; white-space:nowrap; }
 
 /* --- the signature: jobs that land on the host get tape --- */
 .tape{
@@ -76,14 +72,14 @@ body{
 /* --- badges --- */
 .badge{
   display:inline-flex; align-items:center; gap:.3rem;
-  font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.08em; text-transform:uppercase;
-  padding:.12rem .4rem; border-radius:2px; border:1px solid transparent; white-space:nowrap;
+  font-family:var(--font-mono); font-size:.7rem; letter-spacing:.08em; text-transform:uppercase;
+  padding:.12rem .4rem; border-radius:var(--radius-chit); border:1px solid transparent; white-space:nowrap;
 }
-.badge-blocker{ background:var(--short-soft); color:var(--short); border-color:#F0CFCC; }
-.badge-risk{ background:var(--watch-soft); color:var(--watch); border-color:#EFDDB4; }
-.badge-ok{ background:var(--covered-soft); color:var(--covered); border-color:#C6E3D8; }
-.badge-tier{ background:var(--sunk); color:var(--ink-mute); border-color:var(--rule); }
-.badge-tier.T0{ background:var(--carbon-soft); color:var(--carbon); border-color:#CBD5F7; }
+.badge-blocker{ background:var(--short-soft); color:var(--short); border-color:var(--short-line); }
+.badge-risk{ background:var(--watch-soft); color:var(--watch); border-color:var(--watch-line); }
+.badge-ok{ background:var(--covered-soft); color:var(--covered); border-color:var(--covered-line); }
+.badge-tier{ background:var(--paper-sunk); color:var(--ink-mute); border-color:var(--rule); }
+.badge-tier.T0{ background:var(--carbon-soft); color:var(--carbon); border-color:var(--carbon-line); }
 
 /* --- controls --- */
 /* Wrapped in :where() so these carry no specificity at all. The pages reach for
@@ -99,25 +95,33 @@ body{
    specificity, so a zero-specificity rule loses its padding to the reset. This
    sits exactly between the two — above the reset, below any utility. */
 input:where(.field), select:where(.field), textarea:where(.field){
-  width:100%; background:#fff; border:1px solid var(--rule-strong); border-radius:2px;
+  width:100%; background:var(--paper-card); border:1px solid var(--rule-strong); border-radius:var(--radius-chit);
   padding:.6rem .7rem; font:inherit; color:var(--ink);
 }
 .field:focus{ outline:2px solid var(--carbon); outline-offset:1px; border-color:var(--carbon); }
 .btn{
   display:inline-flex; align-items:center; gap:.4rem; cursor:pointer;
-  font-family:"IBM Plex Sans",system-ui,sans-serif; font-weight:600; letter-spacing:.01em;
-  padding:.6rem 1rem; border-radius:2px; border:1px solid var(--ink);
-  background:var(--ink); color:#fff;
+  font-family:var(--font-sans); font-weight:600; letter-spacing:.01em;
+  padding:.6rem 1rem; border-radius:var(--radius-chit); border:1px solid var(--ink);
+  background:var(--ink); color:var(--paper-card);
 }
-.btn:hover{ background:#000; }
+.btn:hover{ background:var(--ink-press); }
 .btn:focus-visible{ outline:2px solid var(--carbon); outline-offset:2px; }
-.btn-quiet{ background:#fff; color:var(--ink); border-color:var(--rule-strong); font-weight:600; padding:.3rem .55rem; font-size:.8rem; }
-.btn-quiet:hover{ background:var(--sunk); }
+.btn-quiet{ background:var(--paper-card); color:var(--ink); border-color:var(--rule-strong); font-weight:600; padding:.3rem .55rem; font-size:.8rem; }
+.btn-quiet:hover{ background:var(--paper-sunk); }
+/* A summary styled as a button. The default disclosure triangle is suppressed and
+   replaced with the same ▸ the nav panel uses, so the control says which way it
+   goes — the answer used to appear and stay, with no way back. */
+summary.btn{ list-style:none; }
+summary.btn::-webkit-details-marker{ display:none; }
+summary.btn::after{ content:"\25B8"; margin-left:.1rem; color:var(--ink-mute); }
+details[open] > summary.btn::after{ content:"\25BE"; }
+summary.btn:focus-visible{ outline:2px solid var(--carbon); outline-offset:2px; }
 
 /* --- data readout --- */
 .readout{
-  background:#0C0F15; color:#D8DEE9; border-radius:2px; padding:.75rem;
-  font-family:"IBM Plex Mono",monospace; font-size:.72rem; line-height:1.55;
+  background:var(--readout); color:var(--readout-ink); border-radius:var(--radius-chit); padding:.75rem;
+  font-family:var(--font-mono); font-size:.72rem; line-height:1.55;
   overflow:auto; max-height:22rem; white-space:pre-wrap; word-break:break-word; margin:0;
 }
 .rule-strike{ text-decoration:line-through; text-decoration-color:var(--short); text-decoration-thickness:2px; }
@@ -135,7 +139,7 @@ a{ color:var(--carbon); }
 /* A run finishes in well under a frame. Flash the line that reports it, so a click
    is visibly acknowledged rather than appearing to do nothing. */
 @keyframes runflash { from { background:var(--tape-soft); } to { background:transparent; } }
-.flash{ animation:runflash 1.1s ease-out 1; border-radius:2px; }
+.flash{ animation:runflash 1.1s ease-out 1; border-radius:var(--radius-chit); }
 @media (prefers-reduced-motion: reduce){ .flash{ animation:none; } }
 
 /* The plan on screen no longer matches the text in the box. */
@@ -162,15 +166,15 @@ a{ color:var(--carbon); }
   background:var(--carbon);
 }
 .kicker{
-  margin:0; font-family:"IBM Plex Mono",monospace; font-size:.68rem;
+  margin:0; font-family:var(--font-mono); font-size:.7rem;
   letter-spacing:.18em; text-transform:uppercase; color:var(--ink-soft);
 }
 /* sheets come in a run and are numbered, the way a docket numbers its pages */
 .kicker-no{ color:var(--carbon); margin-right:.6rem; }
 /* the facts about this sheet, stamped where a chit stamps its count */
 .sheethead-meta{
-  margin-left:auto; text-align:right; font-family:"IBM Plex Mono",monospace;
-  font-size:.66rem; letter-spacing:.1em; color:var(--ink-mute);
+  margin-left:auto; text-align:right; font-family:var(--font-mono);
+  font-size:.7rem; letter-spacing:.1em; color:var(--ink-mute);
 }
 .sheethead h1{
   margin:0;
@@ -178,7 +182,7 @@ a{ color:var(--carbon); }
      second UI face — labels, buttons and the wordmark stay in the sans, or the
      page reads as two designs arguing. Nothing else may set this family, which
      is why there is no utility class for it. */
-  font-family:Fraunces,Georgia,serif;
+  font-family:var(--font-title);
   font-variation-settings:'opsz' 144,'wght' 500,'SOFT' 24,'WONK' 1;
   font-size:clamp(1.6rem,4.4vw,2.15rem); line-height:1.16; letter-spacing:-.005em;
   /* A measure, not a shrink-wrap: 40rem still sits inside the 48rem column, so a
@@ -195,7 +199,6 @@ a{ color:var(--carbon); }
 .lede-note{ margin:.6rem 0 0; max-width:34rem; font-size:.875rem; line-height:1.55; color:var(--ink-mute); }
 @media (max-width:480px){
   .sheethead{ margin-bottom:1.25rem; }
-  .sheethead-meta{ font-size:.62rem; }
   .lede-note{ font-size:.82rem; }
 }
 
@@ -221,13 +224,13 @@ a{ color:var(--carbon); }
   position:sticky; top:0; z-index:20;
   /* border-box, so the rules have to be added back or the reserve is 3px short */
   min-height:calc(3.25rem + 3px);     /* .masthead-inner, plus the 2px and 1px rules */
-  background:var(--card);
+  background:var(--paper-card);
   border-top:2px solid var(--carbon);
   border-bottom:1px solid var(--rule);
   transition:box-shadow .18s ease;
 }
 @media (prefers-reduced-motion:reduce){ #siteHeader{ transition:none; } }
-#siteHeader.lifted{ box-shadow:0 1px 0 var(--rule), 0 10px 20px -18px rgba(16,19,26,.5); }
+#siteHeader.lifted{ box-shadow:var(--shadow-lift); }
 .masthead-inner{
   display:flex; align-items:center; gap:1rem;
   max-width:48rem; margin:0 auto; padding:0 1.25rem; height:3.25rem;
@@ -237,19 +240,19 @@ a{ color:var(--carbon); }
    the name is set, the protocol is stamped. */
 .mark{ display:inline-flex; align-items:baseline; gap:.12rem; text-decoration:none; white-space:nowrap; }
 .mark-name{
-  font-family:"IBM Plex Sans",system-ui,sans-serif; font-weight:600;
+  font-family:var(--font-sans); font-weight:600;
   font-size:.9rem; letter-spacing:.04em; color:var(--ink);
 }
 .mark-dot{ color:var(--carbon); font-weight:800; }
 .mark-code{
-  font-family:"IBM Plex Mono",monospace; font-size:.72rem; font-weight:500;
+  font-family:var(--font-mono); font-size:.72rem; font-weight:500;
   letter-spacing:.14em; color:var(--ink-soft); transform:translateY(-1px);
 }
 .mark:hover .mark-code{ color:var(--carbon); }
 
 /* Where you are, stamped in mono. Fills the gap the nav leaves on a phone. */
 .masthead-where{
-  margin-left:auto; font-family:"IBM Plex Mono",monospace; font-size:.66rem;
+  margin-left:auto; font-family:var(--font-mono); font-size:.7rem;
   letter-spacing:.14em; text-transform:uppercase; color:var(--ink-mute);
   /* a long name wraps on a narrow phone; set it flush right and tight so the
      two lines read as one stamp rather than as a broken line */
@@ -265,15 +268,15 @@ a{ color:var(--carbon); }
 
 /* A word, not a hamburger: the system speaks in labels everywhere else. */
 .menu-btn{
-  font-family:"IBM Plex Mono",monospace; font-size:.66rem; letter-spacing:.14em;
+  font-family:var(--font-mono); font-size:.7rem; letter-spacing:.14em;
   text-transform:uppercase; color:var(--ink-soft);
-  border:1px solid var(--rule-strong); border-radius:2px;
-  padding:.28rem .5rem; background:var(--card); cursor:pointer;
+  border:1px solid var(--rule-strong); border-radius:var(--radius-chit);
+  padding:.28rem .5rem; background:var(--paper-card); cursor:pointer;
 }
 .menu-btn:hover{ border-color:var(--carbon); color:var(--carbon); }
 .menu-btn:focus-visible{ outline:2px solid var(--carbon); outline-offset:1px; }
 
-.navpanel{ border-top:1px solid var(--rule); background:var(--card); }
+.navpanel{ border-top:1px solid var(--rule); background:var(--paper-card); }
 .navpanel a{
   display:block; padding:.6rem 1.25rem; text-decoration:none; color:var(--ink-soft);
   border-bottom:1px dotted var(--rule); font-size:.95rem;

@@ -123,15 +123,23 @@ test('every vendored font file the stylesheet asks for is actually committed', (
   }
 });
 
-test('no page still asks for a face we no longer ship', () => {
-  // the display face is declared in one place; a stale family name anywhere else
-  // renders in the system serif and looks like a bug nobody can explain
-  const declared = new Set([...readFileSync('shared/fonts.css', 'utf8')
+test('every face the design system names is one we actually ship', () => {
+  // A stale family name renders in a system fallback and looks like a bug nobody
+  // can explain. The stacks live in tailwind.config.js now, so that is what to
+  // read — ui.css only ever says var(--font-…).
+  const shipped = new Set([...readFileSync('shared/fonts.css', 'utf8')
     .matchAll(/font-family:\s*'([^']+)'/g)].map(m => m[1]));
-  const used = new Set([...components.matchAll(/font-family:\s*([A-Za-z][\w -]*)/g)]
-    .map(m => m[1].trim()).filter(f => !/^(inherit|monospace|serif|sans-serif|system-ui)$/.test(f)));
-  for (const family of used) {
-    assert.ok(declared.has(family), `ui.css sets ${family}, which fonts.css does not ship`);
+  // read the emitted --font-* stacks rather than the config's source: this is what
+  // the browser actually resolves, and it does not depend on how the config is
+  // written. A first version scraped every quoted string in the config and flagged
+  // "DEFAULT", which is a palette key, not a typeface.
+  const generic = /^(inherit|monospace|serif|sans-serif|system-ui|ui-monospace|ui-sans-serif|Georgia)$/;
+  const named = new Set([...tailwind.matchAll(/--font-[\w-]*\s*:\s*([^;}]+)/g)]
+    .flatMap(m => m[1].split(',').map(f => f.trim().replace(/^["']|["']$/g, '')))
+    .filter(f => f && !generic.test(f)));
+  assert.ok(named.size >= 3, 'the generated stylesheet no longer names any face');
+  for (const family of named) {
+    assert.ok(shipped.has(family), `the design system names ${family}, which fonts.css does not ship`);
   }
 });
 
@@ -214,4 +222,29 @@ test('the header reserves its space before the script that fills it runs', () =>
     'the sticky belongs on the wrapper: on the inner header it depends on display:contents');
   assert.doesNotMatch(rule[1], /display:\s*contents/,
     'display:contents gives the wrapper no box, so it can reserve no height');
+});
+
+test('the component layer restates no token value', () => {
+  // The palette used to be written down twice — here as tailwind tokens, and again
+  // as custom properties in ui.css. They drifted: darkening --ink-mute for contrast
+  // fixed the components and left every `text-ink-mute` utility on the old value,
+  // so the pages looked half-fixed and only measuring caught it.
+  //
+  // tailwind.config.js now emits the custom properties itself, so ui.css consumes
+  // them and never restates one. This test keeps it that way: a raw hex or a
+  // literal font stack in the component layer means a value has been copied, and
+  // a copy is a drift waiting to happen.
+  const hex = [...components.matchAll(/#[0-9A-Fa-f]{3,8}\b/g)].map(m => m[0]);
+  assert.deepEqual(hex, [], 'ui.css hard-codes a colour; add it to tailwind.config.js and use var()');
+
+  const stacks = [...components.matchAll(/font-family:\s*([^;]+);/g)]
+    .map(m => m[1].trim()).filter(v => !v.startsWith('var('));
+  assert.deepEqual(stacks, [], 'ui.css hard-codes a font stack; use var(--font-…)');
+
+  // and the properties it reaches for must be ones the config actually emits
+  const emitted = new Set([...readFileSync('shared/tailwind.css', 'utf8')
+    .matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]));
+  const wanted = new Set([...components.matchAll(/var\((--[\w-]+)\)/g)].map(m => m[1]));
+  const missing = [...wanted].filter(v => !emitted.has(v) && !components.includes(`${v}:`));
+  assert.deepEqual(missing, [], 'ui.css reads a custom property nothing declares');
 });
