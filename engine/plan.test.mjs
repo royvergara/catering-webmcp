@@ -1,7 +1,7 @@
 import assert from 'node:assert';
 import test from 'node:test';
 import { readFileSync, readdirSync } from 'node:fs';
-import { parseOccasion, composeBasket, assemblePlan, ownershipTable, explainQuantity, naiveBasket } from '../shared/plan.js';
+import { parseOccasion, composeBasket, assemblePlan, ownershipTable, explainQuantity, naiveBasket, replan } from '../shared/plan.js';
 
 const vendors = readdirSync('data/vendors').filter(f => f.endsWith('.json'))
   .map(f => JSON.parse(readFileSync(`data/vendors/${f}`, 'utf8')));
@@ -224,4 +224,81 @@ test('with no vendors at all, nothing throws', () => {
   assert.deepEqual(naiveBasket(o, []).items, []);
   assert.doesNotThrow(() => composeBasket(o, []));
   assert.deepEqual(composeBasket(o, []).items, []);
+});
+
+// The parser is deliberately shallow — an agent calling plan_meal has already done
+// the language work — but a shallow reader that drops a clause in silence is
+// indistinguishable from a wrong one. These guard the saying-so.
+
+test('a quantity no field claimed is reported, not dropped', () => {
+  const o = parseOccasion(PROMPT + ' feed 5 dogs too');
+  assert.deepEqual(o.unread, ['5 dogs']);
+  // and it changed nothing it should not have
+  const base = parseOccasion(PROMPT);
+  for (const k of ['headcount', 'budget', 'venueHasKitchen']) assert.equal(o[k], base[k]);
+  assert.deepEqual(o.dietary, base.dietary);
+});
+
+test('the demo prompt has no residue, so the report stays quiet when it should', () => {
+  assert.deepEqual(parseOccasion(PROMPT).unread, []);
+  assert.deepEqual(parseOccasion('100 guests, budget 2,500, 6 vegetarians').unread, []);
+});
+
+test('the clock is not reported as unread — found.serveAt already says it was not read', () => {
+  const o = parseOccasion('40 people at 6pm');
+  assert.deepEqual(o.unread, []);
+  assert.equal(o.found.serveAt, false);
+});
+
+test('every unclaimed quantity is named, in the order written', () => {
+  assert.deepEqual(parseOccasion('40 people, plus food for 5 dogs and 3 cats').unread,
+    ['5 dogs', '3 cats']);
+});
+
+test('"for N <not-people>" is not a headcount', () => {
+  // this used to plan dinner for twelve people
+  const dogs = parseOccasion('dinner for 12 dogs');
+  assert.equal(dogs.found.headcount, false);
+  assert.deepEqual(dogs.unread, ['12 dogs']);
+
+  // while the readings that were right stay right
+  assert.equal(parseOccasion('dinner for 12').headcount, 12);
+  assert.equal(parseOccasion('party of 30').headcount, 30);
+  assert.equal(parseOccasion('party of 30 guests').headcount, 30);
+  assert.equal(parseOccasion('catering for 40 people').headcount, 40);
+});
+
+test('a description that gained an unreadable clause does not report "nothing changed"', () => {
+  const before = assemblePlan(parseOccasion(PROMPT), vendors, 'pickup');
+  const { delta } = replan(before, vendors, { description: PROMPT + ' feed 5 dogs too' });
+  assert.match(delta.change, /Not read: 5 dogs\./);
+  assert.doesNotMatch(delta.change, /Nothing in the description changed/);
+  assert.deepEqual(delta.unread, ['5 dogs']);
+});
+
+test('residue is reported alongside the fields that did move, not instead of them', () => {
+  const before = assemblePlan(parseOccasion(PROMPT), vendors, 'pickup');
+  const { delta } = replan(before, vendors,
+    { description: '60 people, $600, 6 vegetarians, 2 gluten free, no kitchen, feed 5 dogs' });
+  assert.match(delta.change, /Headcount 40 -> 60/);
+  assert.match(delta.change, /Not read: 5 dogs\./);
+});
+
+test('residue can never carry markup, whatever was typed', () => {
+  // The reported phrase is rebuilt from two narrow captures — digits and commas,
+  // then letters, apostrophe, hyphen — so nothing HTML-significant can reach a page
+  // through it. plan.html escapes it as well, but this is the guarantee. Widening
+  // the residue scanner to catch more clauses would give that up, which is the
+  // trade: `5 "trays"` is reported as nothing rather than reported unsafely.
+  const hostile = [
+    '40 people, feed 5 <img src=x onerror=alert(1)> too',
+    '40 people, feed 5 dogs<script>alert(1)</script>',
+    '40 people, 5 "trays" of ice',
+    "40 people, feed 5 dog's dinner"
+  ];
+  for (const text of hostile) {
+    for (const phrase of parseOccasion(text).unread) {
+      assert.match(phrase, /^[\d,]+ [a-z][a-z'-]*$/, `unsafe residue from: ${text}`);
+    }
+  }
 });

@@ -9,12 +9,42 @@ import { timeline, addHostHoldingJob } from '../engine/schedule.js';
 const WORDS = { one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8, nine:9, ten:10,
   eleven:11, twelve:12, fifteen:15, twenty:20, thirty:30, forty:40, fifty:50, sixty:60, hundred:100 };
 
+// The nouns that mean "people". Written once: the headcount matcher looks for them,
+// and the "for N" fallbacks use them to tell "for 40 people" from "for 12 dogs".
+const PEOPLE = String.raw`people|guests|pax|heads|persons?|attendees`;
+
+// Words that can follow a bare headcount without being the thing it counts:
+// function words and calendar words. Both are closed classes, which is what makes
+// this list finite — the nouns on the other side ("dogs", "cats", "trays") are not.
+const UNCOUNTED = String.raw`on|at|in|of|for|with|and|or|to|from|by|this|next|last|` +
+  String.raw`plus|about|around|under|over|near|before|after|during|` +
+  String.raw`today|tonight|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday`;
+
+// A number is a headcount unless a noun follows that it is plainly counting.
+// "dinner for 12" and "party for 60 on Friday" are headcounts; "dinner for 12 dogs"
+// is not, and used to plan dinner for twelve people.
+const COUNTS_PEOPLE = String.raw`(?!\s+(?!(?:${PEOPLE}|${UNCOUNTED})\b)[a-z])`;
+
+// A number with a noun attached is a quantity of something. A bare number is
+// usually the clock ("Saturday at 6"), and `found.serveAt` already says the clock
+// is not read, so reporting it again would only be noise.
+const TIME_WORD = /^(?:pm|am|oclock|noon|ish|hrs?)$/;
+
 export function parseOccasion(text) {
   let t = String(text).toLowerCase();
   // people write "six vegetarians", not "6 vegetarians"
   for (const [w, n] of Object.entries(WORDS)) t = t.replace(new RegExp(`\\b${w}\\b`, 'g'), String(n));
 
-  const num = re => { const m = t.match(re); return m ? Number(m[1].replace(/,/g, '')) : undefined; };
+  // Every match records the span it consumed, so whatever is left can be reported
+  // instead of dropped. "feed 5 dogs too" used to vanish here and the page then
+  // said nothing in the description had changed, which was not true.
+  const claimed = [];
+  const num = re => {
+    const m = t.match(re);
+    if (!m) return undefined;
+    claimed.push([m.index, m.index + m[0].length]);
+    return Number(m[1].replace(/,/g, ''));
+  };
 
   const dietary = {};
   const veg = num(/(\d+)\s*veg(etarian)?/); if (veg) dietary.vegetarian = veg;
@@ -23,9 +53,9 @@ export function parseOccasion(text) {
 
   // How many people, written the several ways people actually write it.
   const headcount =
-    num(/(\d+)\s*(?:people|guests|pax|heads|persons?|attendees|of us)/) ??
-    num(/\b(?:party|group|dinner|lunch|table|catering)\s+(?:of|for)\s+(\d+)/) ??
-    num(/\bfor\s+(\d+)\b(?!\s*(?:pm|am|o'clock))/) ??
+    num(new RegExp(String.raw`(\d+)\s*(?:${PEOPLE}|of us)`)) ??
+    num(new RegExp(String.raw`\b(?:party|group|dinner|lunch|table|catering)\s+(?:of|for)\s+(\d+)\b${COUNTS_PEOPLE}`)) ??
+    num(new RegExp(String.raw`\bfor\s+(\d+)\b(?!\s*(?:pm|am|o'clock))${COUNTS_PEOPLE}`)) ??
     num(/^(\d+)\b/);
 
   // Only a figure actually marked as money, or named as a budget. Matching any
@@ -33,6 +63,16 @@ export function parseOccasion(text) {
   const budget =
     num(/\$\s?(\d[\d,]*)/) ??
     num(/\b(?:budget|spend|under|around|about|up to|max(?:imum)?)\D{0,12}(\d[\d,]{1,6})\b/);
+
+  // What no field claimed. Reported rather than discarded: the planner cannot act
+  // on "5 dogs", but saying so is the difference between a limit and a lie.
+  const inClaimed = i => claimed.some(([a, b]) => i >= a && i < b);
+  const unread = [];
+  for (const m of t.matchAll(/(\d[\d,]*)\s*([a-z][a-z'-]+)/g)) {
+    if (inClaimed(m.index) || TIME_WORD.test(m[2])) continue;
+    const phrase = `${m[1]} ${m[2]}`;
+    if (!unread.includes(phrase)) unread.push(phrase);
+  }
 
   // What was actually read, as opposed to what was assumed in its absence. The
   // planner surfaces the difference rather than presenting a default as a fact.
@@ -45,6 +85,7 @@ export function parseOccasion(text) {
 
   return {
     found,
+    unread,
     headcount: headcount ?? 40,
     budget: budget ?? 600,
     serveAt: '2026-09-12T18:00:00-05:00',
@@ -324,8 +365,8 @@ export function replan(plan, vendors, change) {
       { assumptions: plan.assumptions, baseOccasion: reparsed, compose: plan.compose });
     // say what the description said differently, not merely that it was read again
     const inputChanges = diffOccasion(base, reparsed);
-    what = describeOccasionChange(inputChanges);
-    delta0 = { inputChanges };
+    what = describeOccasionChange(inputChanges, reparsed.unread);
+    delta0 = { inputChanges, unread: reparsed.unread };
   } else {
     const was = plan.assumptions.find(a => a.id === change.assumption);
     after = revisePlan(plan, vendors, change.assumption, change.value);

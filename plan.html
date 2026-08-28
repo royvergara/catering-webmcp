@@ -448,10 +448,19 @@ function announce(action, plan, { rebuilt = true } = {}) {
   const checks = Object.keys(CHECK_LABELS).length;
   const blockers = plan.findings.filter(f => f.severity === 'blocker').length;
   const found = blockers === 0 ? 'No blockers.' : blockers === 1 ? '1 blocker on it.' : `${blockers} blockers on it.`;
-  els.runNote.textContent = rebuilt
+  // Anything in the description no field claimed is named here rather than dropped.
+  // The parser is shallow on purpose — an agent calling plan_meal has already done
+  // the language work — but a shallow reader that stays quiet is just a wrong one.
+  const unread = (plan.occasion || {}).unread || [];
+  const said = rebuilt
     ? `${action} — read ${vendors.length} vendor sources, composed ${options.length} option${
         options.length === 1 ? '' : 's'}, ran ${checks} checks. ${found}`
     : `${action}. ${found}`;
+  // Darker than the line it sits on, because it is the one part of that line the
+  // reader has to act on. The text came from the textarea, so it is escaped.
+  els.runNote.innerHTML = esc(said) + (unread.length
+    ? ` <span class="text-ink">Not read: ${esc(unread.join(', '))}.</span>`
+    : '');
   els.runNote.classList.remove('flash');
   void els.runNote.offsetWidth;          // restart the animation on a repeat run
   els.runNote.classList.add('flash');
@@ -547,7 +556,7 @@ if (vendors.length && document.modelContext?.registerTool) {
         return { content: [{ type: 'text', text: JSON.stringify(out) }] };
       }});
 
-  reg('plan_meal', 'Turn a plain description of an occasion into a need list: headcount, budget, dietary groups and venue constraints.',
+  reg('plan_meal', 'Turn a plain description of an occasion into a need list: headcount, budget, dietary groups and venue constraints. Returns `found` — which of those were read rather than assumed — and `unread`, any quantity in the description no field claimed. This reader is shallow on purpose; pass the fields you already understood rather than relying on it.',
     { type:'object', properties:{ description:{type:'string'} }, required:['description'] },
     ({ description }) => { els.q.value = description; const p = run(); return { occasion: p.occasion, demand: p.basket.demand }; });
 

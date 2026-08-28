@@ -112,7 +112,7 @@ below T0 can act**.
 ## Testing
 
 ```bash
-npm test      # 160 tests. No browser, no dependencies.
+npm test      # 170 tests. No browser, no dependencies.
 npm run dev   # http://localhost:8080
 ```
 
@@ -149,7 +149,7 @@ engine/trust.js       vendor text is data: field allowlist + injection quarantin
 engine/options.js     two or three orders, ranked and described by tradeoff
 engine/adapters.js    read a business at T0–T4; what each tier can and cannot answer
 engine/schedule.js    when each job has to happen, in the event's own clock
-engine/*.test.mjs     160 tests
+engine/*.test.mjs     170 tests
 
 shared/plan.js        parse, compose, explain the arithmetic, ownership table
 shared/vendor-tools.js the 5 vendor tools, pure — imported by both the page and Node
